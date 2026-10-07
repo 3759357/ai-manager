@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+message_file="$1"
+first_line="$(sed -n '1p' "$message_file")"
+
+case "$first_line" in
+  Merge\ *|Revert\ *)
+    exit 0
+    ;;
+esac
+
+if ! printf '%s\n' "$first_line" | grep -Eq '^(init|feat|fix|docs|style|refactor|test|chore|perf|ci|revert): .+'; then
+  echo "Invalid commit message:" >&2
+  echo "  $first_line" >&2
+  echo "" >&2
+  echo "Expected format:" >&2
+  echo "  type: subject" >&2
+  echo "" >&2
+  echo "Allowed types:" >&2
+  echo "  init, feat, fix, docs, style, refactor, test, chore, perf, ci, revert" >&2
+  exit 1
+fi

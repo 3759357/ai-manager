@@ -1,0 +1,210 @@
+{
+  "source": "합성 테스트 fixture",
+  "note": "import 후 draft로만 저장되는 예제.",
+  "theses": [
+    {
+      "id": "amd-example",
+      "symbol": "AMD",
+      "kind": "position",
+      "conviction": 2,
+      "userStatement": "가상 예제: AMD의 분기 실적을 관찰한다.",
+      "thesis": "테스트용 가설: 공개 실적 지표가 개선되는지 확인한다.",
+      "relatedSymbols": [],
+      "checks": [
+        {
+          "id": "revenue",
+          "what": "분기 매출 추이",
+          "source": "가상 테스트 자료",
+          "healthy": "증가",
+          "warning": "감소"
+        }
+      ],
+      "counterThesis": [
+        "가상 가설이 다음 관측에서 반박될 수 있다."
+      ],
+      "invalidation": {
+        "auto": [],
+        "alertOnly": [
+          "관측 지표 악화"
+        ]
+      },
+      "sizing": {
+        "maxWeightPct": 5,
+        "addOnDip": false
+      },
+      "notes": [
+        "합성 fixture. 실제 보유·수익·투자 의견과 무관하다."
+      ]
+    },
+    {
+      "id": "aapl-example",
+      "symbol": "AAPL",
+      "kind": "position",
+      "conviction": 2,
+      "userStatement": "가상 예제: AAPL의 분기 실적을 관찰한다.",
+      "thesis": "테스트용 가설: 공개 실적 지표가 개선되는지 확인한다.",
+      "relatedSymbols": [],
+      "checks": [
+        {
+          "id": "revenue",
+          "what": "분기 매출 추이",
+          "source": "가상 테스트 자료",
+          "healthy": "증가",
+          "warning": "감소"
+        }
+      ],
+      "counterThesis": [
+        "가상 가설이 다음 관측에서 반박될 수 있다."
+      ],
+      "invalidation": {
+        "auto": [],
+        "alertOnly": [
+          "관측 지표 악화"
+        ]
+      },
+      "sizing": {
+        "maxWeightPct": 5,
+        "addOnDip": false
+      },
+      "notes": [
+        "합성 fixture. 실제 보유·수익·투자 의견과 무관하다."
+      ]
+    },
+    {
+      "id": "qcom-example",
+      "symbol": "QCOM",
+      "kind": "position",
+      "conviction": 2,
+      "userStatement": "가상 예제: QCOM의 분기 실적을 관찰한다.",
+      "thesis": "테스트용 가설: 공개 실적 지표가 개선되는지 확인한다.",
+      "relatedSymbols": [],
+      "checks": [
+        {
+          "id": "revenue",
+          "what": "분기 매출 추이",
+          "source": "가상 테스트 자료",
+          "healthy": "증가",
+          "warning": "감소"
+        }
+      ],
+      "counterThesis": [
+        "가상 가설이 다음 관측에서 반박될 수 있다."
+      ],
+      "invalidation": {
+        "auto": [],
+        "alertOnly": [
+          "관측 지표 악화"
+        ]
+      },
+      "sizing": {
+        "maxWeightPct": 5,
+        "addOnDip": false
+      },
+      "notes": [
+        "합성 fixture. 실제 보유·수익·투자 의견과 무관하다."
+      ]
+    },
+    {
+      "id": "msft-example",
+      "symbol": "MSFT",
+      "kind": "position",
+      "conviction": 2,
+      "userStatement": "가상 예제: MSFT의 분기 실적을 관찰한다.",
+      "thesis": "테스트용 가설: 공개 실적 지표가 개선되는지 확인한다.",
+      "relatedSymbols": [],
+      "checks": [
+        {
+          "id": "revenue",
+          "what": "분기 매출 추이",
+          "source": "가상 테스트 자료",
+          "healthy": "증가",
+          "warning": "감소"
+        }
+      ],
+      "counterThesis": [
+        "가상 가설이 다음 관측에서 반박될 수 있다."
+      ],
+      "invalidation": {
+        "auto": [],
+        "alertOnly": [
+          "관측 지표 악화"
+        ]
+      },
+      "sizing": {
+        "maxWeightPct": 5,
+        "addOnDip": false
+      },
+      "notes": [
+        "합성 fixture. 실제 보유·수익·투자 의견과 무관하다."
+      ]
+    },
+    {
+      "id": "amzn-example",
+      "symbol": "AMZN",
+      "kind": "position",
+      "conviction": 2,
+      "userStatement": "가상 예제: AMZN의 분기 실적을 관찰한다.",
+      "thesis": "테스트용 가설: 공개 실적 지표가 개선되는지 확인한다.",
+      "relatedSymbols": [],
+      "checks": [
+        {
+          "id": "revenue",
+          "what": "분기 매출 추이",
+          "source": "가상 테스트 자료",
+          "healthy": "증가",
+          "warning": "감소"
+        }
+      ],
+      "counterThesis": [
+        "가상 가설이 다음 관측에서 반박될 수 있다."
+      ],
+      "invalidation": {
+        "auto": [],
+        "alertOnly": [
+          "관측 지표 악화"
+        ]
+      },
+      "sizing": {
+        "maxWeightPct": 5,
+        "addOnDip": false
+      },
+      "notes": [
+        "합성 fixture. 실제 보유·수익·투자 의견과 무관하다."
+      ]
+    },
+    {
+      "id": "arm-example",
+      "symbol": "ARM",
+      "kind": "watch",
+      "conviction": 2,
+      "userStatement": "가상 예제: ARM의 분기 실적을 관찰한다.",
+      "thesis": "테스트용 가설: 공개 실적 지표가 개선되는지 확인한다.",
+      "relatedSymbols": [],
+      "checks": [
+        {
+          "id": "revenue",
+          "what": "분기 매출 추이",
+          "source": "가상 테스트 자료",
+          "healthy": "증가",
+          "warning": "감소"
+        }
+      ],
+      "counterThesis": [
+        "가상 가설이 다음 관측에서 반박될 수 있다."
+      ],
+      "invalidation": {
+        "auto": [],
+        "alertOnly": [
+          "관측 지표 악화"
+        ]
+      },
+      "sizing": {
+        "maxWeightPct": 0,
+        "addOnDip": false
+      },
+      "notes": [
+        "합성 fixture. 실제 보유·수익·투자 의견과 무관하다."
+      ]
+    }
+  ]
+}

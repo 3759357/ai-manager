@@ -1,0 +1,41 @@
+#!/bin/sh
+# main 브랜치 커밋마다 서버로 push한다. 서버 post-receive 훅이 빌드·테스트·배포를 한다.
+#   끄기(한 번):  AI_MANAGER_AUTO_DEPLOY=0 git commit ...
+#   끄기(계속):   git config ai-manager.autoDeploy false
+#   결과:         .git/ai-manager-deploy.log, 서버에 웹훅이 있으면 디스코드
+set -eu
+
+[ "${AI_MANAGER_AUTO_DEPLOY:-1}" = "0" ] && exit 0
+[ "$(git config --bool ai-manager.autoDeploy || echo true)" = "false" ] && exit 0
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+[ "$branch" = "main" ] || exit 0
+git_dir=$(git rev-parse --git-dir)
+# rebase·merge·cherry-pick 도중의 중간 커밋은 보내지 않는다.
+for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD; do
+    [ -e "$git_dir/$marker" ] && exit 0
+done
+git remote get-url server >/dev/null 2>&1 || { echo "ai-manager: 'server' 원격이 없어 자동 배포를 건너뜁니다." >&2; exit 0; }
+
+log="$git_dir/ai-manager-deploy.log"
+rev=$(git rev-parse --short HEAD)
+deploy() {
+    {
+        echo "=== $(date '+%Y-%m-%d %H:%M:%S') push $rev"
+        if git push server main; then
+            status="배포 완료"
+        else
+            status="배포 실패 (로그: $log)"
+        fi
+        echo "=== $status"
+    } >>"$log" 2>&1
+    if command -v osascript >/dev/null 2>&1; then
+        osascript -e "display notification \"$rev $status\" with title \"AI Manager\"" >/dev/null 2>&1 || true
+    fi
+}
+if [ "${AI_MANAGER_DEPLOY_WAIT:-0}" = "1" ]; then
+    deploy
+else
+    # 커밋 명령을 붙잡지 않도록 백그라운드로 보낸다(서버 빌드는 몇 분 걸린다).
+    ( deploy ) </dev/null >/dev/null 2>&1 &
+    echo "ai-manager: $rev 서버 배포 시작 → 결과는 $log (tail -f 로 확인)"
+fi

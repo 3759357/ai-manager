@@ -1,0 +1,2 @@
+// Machine-specific signing stays outside Git. Simulator builds need no team.
+#include? "Local.xcconfig"

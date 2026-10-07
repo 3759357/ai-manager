@@ -1,0 +1,5 @@
+// Opt-in only with a paid developer team and an App ID with Push Notifications enabled.
+AI_MANAGER_SWIFT_FEATURES = AI_MANAGER_APNS
+CODE_SIGN_ENTITLEMENTS = Config/APNs.entitlements
+AI_MANAGER_APNS_ENTITLEMENT = development
+INFOPLIST_KEY_AIManagerAPNSEnvironment = sandbox

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ki"
+version = "0.1.0"
+description = "한국투자증권 Open API 기반 주식 자동매매 CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "requests>=2.32,<3",
+  "websockets>=15,<16",
+]
+
+[project.scripts]
+ki = "ki.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

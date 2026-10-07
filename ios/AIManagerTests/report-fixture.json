@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "report_id": "example",
+  "collected_from": "2026-09-19T06:47:20.187518+00:00",
+  "positions": [
+    {
+      "broker": "toss",
+      "symbol": "FRACTION",
+      "currency": "USD",
+      "quantity": "0.01313",
+      "price": "71.82",
+      "market_value": "0.9429966",
+      "purchase_amount": "1",
+      "unrealized_pnl": "-0.0570034"
+    },
+    {
+      "broker": "toss",
+      "symbol": "LOCAL",
+      "currency": "KRW",
+      "quantity": "2",
+      "price": "1000",
+      "market_value": "2000",
+      "purchase_amount": null,
+      "unrealized_pnl": null
+    }
+  ],
+  "buying_power": [
+    {
+      "broker": "toss",
+      "currency": "KRW",
+      "amount": "15"
+    },
+    {
+      "broker": "toss",
+      "currency": "USD",
+      "amount": "15"
+    }
+  ],
+  "recent_orders": [
+    {
+      "broker": "toss", "order_id": "example-order", "symbol": "FRACTION",
+      "side": "BUY", "status": "FILLED", "currency": "USD", "quantity": "0.01313",
+      "filled_quantity": "0.01313", "average_filled_price": "71.82",
+      "filled_amount": "0.9429966", "commission": "0", "ordered_at": "2026-09-19T09:30:00+09:00"
+    }
+  ],
+  "order_scope_note": "최근 주문만 표시합니다. 전체 원장이 아닙니다.",
+  "sources": [
+    {
+      "source": "toss:holdings",
+      "status": "ok",
+      "collected_at": "2026-09-19T06:47:20.188606+00:00"
+    }
+  ],
+  "warnings": [],
+  "market_value_by_currency": {
+    "KRW": "2000",
+    "USD": "0.9429966"
+  },
+  "collected_to": "2026-09-19T06:47:20.189286+00:00",
+  "status": "ok",
+  "scope_note": "수집된 보유주식 평가금액입니다. 현금·미체결·기타 자산과 환산 총자산은 포함하지 않습니다. 주문가능금액은 현금잔고와 다릅니다. KIS는 국내 및 NASD/USD 조회 범위이며 국내 잔고의 추가 페이지 여부는 현재 클라이언트에서 확인할 수 없습니다. 수집 시간은 시세 기준 시각이 아니며 실시간 가격을 보장하지 않습니다."
+}

@@ -1,0 +1,29 @@
+# Codex CLI 게이트웨이 (ChatGPT 구독 인증)
+FROM node:22-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates jq \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g @openai/codex@latest
+
+COPY run.sh /usr/local/bin/agent-run
+COPY loop.sh /usr/local/bin/agent-loop
+COPY healthcheck.sh /usr/local/bin/agent-health
+RUN chmod +x /usr/local/bin/agent-run /usr/local/bin/agent-loop \
+      /usr/local/bin/agent-health
+
+RUN useradd -m -u 10001 agent
+USER agent
+WORKDIR /work
+
+# 인증 파일 위치. secrets/codex 를 여기에 rw 로 마운트한다.
+# codex 가 토큰을 갱신하면 auth.json 을 덮어쓰므로 ro 면 8일 뒤 죽는다.
+ENV CODEX_HOME=/home/agent/.codex
+ENV AGENT_CLI=codex
+ENV AGENT_ROLE=reviewer
+
+ENV SPOOL_DIR=/spool
+
+# 상주 모드: 스풀 폴링. 단발 호출은 `docker run --rm -i <image> agent-run`.
+CMD ["agent-loop"]

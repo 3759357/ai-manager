@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "core"
+version = "0.1.0"
+description = "KIS와 토스증권을 함께 사용하는 통합 브로커 관제 CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+push = ["httpx[http2]>=0.27,<1", "PyJWT[crypto]>=2.9,<3"]
+
+[project.scripts]
+core = "core.cli:main"
+ai-manager = "core.manager_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

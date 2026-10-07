@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["judgments"],
+  "properties": {
+    "judgments": {
+      "type": "array", "maxItems": 30,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["thesisId", "health", "rule", "checks", "tilt", "eventRisks", "explanation"],
+        "properties": {
+          "thesisId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"},
+          "health": {"type": "string", "enum": ["intact", "weakened", "broken"]},
+          "rule": {"type": "string", "maxLength": 500},
+          "checks": {
+            "type": "array", "maxItems": 12,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["id", "status", "evidence"],
+              "properties": {
+                "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"},
+                "status": {"type": "string", "enum": ["ok", "warning", "unknown"]},
+                "evidence": {"type": "string", "maxLength": 500}
+              }
+            }
+          },
+          "tilt": {"type": "integer", "minimum": -2, "maximum": 2},
+          "eventRisks": {
+            "type": "array", "maxItems": 5,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["type", "at", "note"],
+              "properties": {
+                "type": {"type": "string", "enum": ["earnings", "guidance", "legal", "product", "macro", "other"]},
+                "at": {"type": "string", "maxLength": 40},
+                "note": {"type": "string", "maxLength": 300}
+              }
+            }
+          },
+          "explanation": {"type": "string", "maxLength": 2000}
+        }
+      }
+    }
+  }
+}

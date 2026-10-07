@@ -1,0 +1,25 @@
+# Standalone read-only reporting stack; does not start trading/reconcile services.
+name: ai-manager-reports
+services:
+  report-worker:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
+    env_file:
+      - ./core/.env
+    environment:
+      AI_MANAGER_DATA_DIR: /app/runtime/manager
+      AI_MANAGER_EXECUTION_MODE: paper
+      KIS_ALLOW_ORDERS: "false"
+      TOSS_ALLOW_ORDERS: "false"
+    volumes:
+      - ./core/data/manager:/app/runtime/manager
+      - ~/.cache/ki:/root/.cache/ki
+      - ./secrets:/run/ai-manager-secrets:ro
+    restart: unless-stopped
+    command: ["ai-manager", "worker"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

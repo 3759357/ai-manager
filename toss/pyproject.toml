@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "toss"
+version = "0.1.0"
+description = "토스증권 Open API 기반 주식 조회 및 안전 주문 CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "requests>=2.32,<3",
+]
+
+[project.scripts]
+toss = "toss.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

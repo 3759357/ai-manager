@@ -1,0 +1,106 @@
+services:
+  worker:
+    build: .
+    env_file:
+      - ../core/.env
+    environment:
+      KIS_ENV: real
+      KI_DB_PATH: /app/data/ki.db
+    volumes:
+      - ./data:/app/data
+      - ~/.cache/ki:/root/.cache/ki
+    restart: unless-stopped
+    command: ["ki", "worker", "--interval", "60"]
+
+  orderbook:
+    build: .
+    env_file:
+      - ../core/.env
+    environment:
+      KIS_ENV: real
+      KI_DB_PATH: /app/data/ki.db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    command: ["python", "scripts/stream_apple_orderbook.py"]
+
+  orderbook-daytime:
+    build: .
+    env_file:
+      - ../core/.env
+    environment:
+      KIS_ENV: real
+      KI_DB_PATH: /app/data/ki.db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    profiles:
+      - daytime
+    command: ["python", "scripts/stream_apple_orderbook.py", "--session", "daytime"]
+
+  trades:
+    build: .
+    env_file:
+      - ../core/.env
+    environment:
+      KIS_ENV: real
+      KI_DB_PATH: /app/data/ki.db
+      KIS_TRADE_SYMBOL: ${KIS_TRADE_SYMBOL:-GOOGL}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    command:
+      [
+        "sh",
+        "-c",
+        "ki trade-watch \"$${KIS_TRADE_SYMBOL}\" --session regular",
+      ]
+
+  trades-daytime:
+    build: .
+    env_file:
+      - ../core/.env
+    environment:
+      KIS_ENV: real
+      KI_DB_PATH: /app/data/ki.db
+      KIS_TRADE_SYMBOL: ${KIS_TRADE_SYMBOL:-GOOGL}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    profiles:
+      - daytime
+    command:
+      [
+        "sh",
+        "-c",
+        "ki trade-watch \"$${KIS_TRADE_SYMBOL}\" --session daytime",
+      ]
+
+  dip-watch:
+    build: .
+    env_file:
+      - ../core/.env
+    environment:
+      KIS_ENV: real
+      KI_DB_PATH: /app/data/ki.db
+      KIS_DIP_SYMBOL: ${KIS_DIP_SYMBOL:-QCOM}
+      KIS_DIP_QUANTITY: ${KIS_DIP_QUANTITY:-4}
+      KIS_DIP_TRANCHES: ${KIS_DIP_TRANCHES:-1,1,2}
+      KIS_DIP_NEXT_TRANCHE_DROP_PCT: ${KIS_DIP_NEXT_TRANCHE_DROP_PCT:-3}
+      KIS_DIP_WATCH_LOW: ${KIS_DIP_WATCH_LOW:-175}
+      KIS_DIP_WATCH_HIGH: ${KIS_DIP_WATCH_HIGH:-200}
+      KIS_DIP_MIN_DRAWDOWN_PCT: ${KIS_DIP_MIN_DRAWDOWN_PCT:-5}
+      KIS_DIP_REBOUND_PCT: ${KIS_DIP_REBOUND_PCT:-1.5}
+      KIS_DIP_REFERENCE_REBOUND_PCT: ${KIS_DIP_REFERENCE_REBOUND_PCT:-0.5}
+    volumes:
+      - ./data:/app/data
+      - ~/.cache/ki:/root/.cache/ki
+    restart: unless-stopped
+    profiles:
+      - signals
+    command:
+      [
+        "sh",
+        "-c",
+        "ki dip-watch \"$${KIS_DIP_SYMBOL}\" \"$${KIS_DIP_QUANTITY}\" --tranches \"$${KIS_DIP_TRANCHES}\" --next-tranche-drop-pct \"$${KIS_DIP_NEXT_TRANCHE_DROP_PCT}\" --watch-low \"$${KIS_DIP_WATCH_LOW}\" --watch-high \"$${KIS_DIP_WATCH_HIGH}\" --min-drawdown-pct \"$${KIS_DIP_MIN_DRAWDOWN_PCT}\" --rebound-pct \"$${KIS_DIP_REBOUND_PCT}\" --reference QQQ --reference SOXX --reference-rebound-pct \"$${KIS_DIP_REFERENCE_REBOUND_PCT}\" --interval 30",
+      ]

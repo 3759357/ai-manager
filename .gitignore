@@ -1,0 +1,65 @@
+# Credentials and machine-specific configuration
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.mobileprovision
+auth.json
+.credentials.json
+/ai-manager-server
+ios/Config/Local.xcconfig
+/publish/local/
+/public-export/
+/core/seed/private/
+
+# Runtime state and private account records
+data/
+spool/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+**/매매일지.md
+**/매매일지.md
+/deploy-images.yml
+/deploy-reports-images.yml
+/deploy-stacks.txt
+
+# Python environments, caches and generated output
+.venv/
+.venv-*/
+venv/
+.cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.coverage
+htmlcov/
+
+# Xcode local state and artifacts; keep shared schemes and Package.resolved
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xcarchive
+*.xcresult
+*.ipa
+*.dSYM/
+
+# macOS and local reference/archive files
+.DS_Store
+._*
+/open-trading-api/
+/_to_delete/

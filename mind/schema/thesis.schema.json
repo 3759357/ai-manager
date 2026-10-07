@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["thesis", "relatedSymbols", "checks", "counterThesis", "invalidationAuto", "invalidationAlertOnly"],
+  "properties": {
+    "thesis": {"type": "string", "minLength": 1, "maxLength": 600},
+    "relatedSymbols": {"type": "array", "maxItems": 5, "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9.-]{0,9}$"}},
+    "checks": {
+      "type": "array", "minItems": 1, "maxItems": 8,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "what", "source", "healthy", "warning"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"},
+          "what": {"type": "string", "minLength": 1, "maxLength": 300},
+          "source": {"type": "string", "maxLength": 200},
+          "healthy": {"type": "string", "maxLength": 300},
+          "warning": {"type": "string", "maxLength": 300}
+        }
+      }
+    },
+    "counterThesis": {"type": "array", "maxItems": 6, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+    "invalidationAuto": {"type": "array", "maxItems": 5, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+    "invalidationAlertOnly": {"type": "array", "maxItems": 5, "items": {"type": "string", "minLength": 1, "maxLength": 500}}
+  }
+}

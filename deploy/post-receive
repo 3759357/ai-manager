@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+deploy_main=false
+while read -r old_rev new_rev ref; do
+    if [[ $ref == refs/heads/main && ! $new_rev =~ ^0+$ ]]; then
+        deploy_main=true
+    fi
+done
+if "$deploy_main"; then
+    # Git has already accepted the commit; deployment has its own result.
+    if ! "$HOME/ai-manager/bin/deploy.sh"; then
+        echo 'DEPLOY FAILED: commit received, deployment did not complete.' >&2
+        echo 'Retry: ~/ai-manager/bin/deploy.sh' >&2
+        exit 1
+    fi
+fi

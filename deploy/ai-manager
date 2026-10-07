@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# SSH CLI and the iOS app address the same durable manager store.
+set -euo pipefail
+cd "${AI_MANAGER_CURRENT_DIR:-$HOME/ai-manager/current}"
+exec docker compose -f docker-compose.reports.yml exec -T report-worker ai-manager "$@"

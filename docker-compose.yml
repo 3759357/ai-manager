@@ -1,0 +1,226 @@
+# ai-manager 실시간 서버 통합 Compose
+#
+# 서비스 구성:
+#   notification   - 브로커 이벤트 복제 + 콘솔/Discord 알림 worker (core)
+#   ki-reconcile   - KIS 주문·체결 대사 worker
+#   ki-market-data - 단일 웹소켓으로 KIS 호가·체결·분봉 수집
+#   ki-dip-watch   - 낙폭 후 분할매수 후보 신호 (signals 프로필)
+#   strategy-agent - 스풀 기반 LLM 심사 게이트웨이 (strategy 프로필)
+#   strategy-review- 매수 후보 심사 워커 (strategy 프로필)
+#
+# 실행:
+#   docker compose up -d --build
+#   KIS_MARKET_SESSION=daytime docker compose up -d   # 주간거래 세션으로 전환
+#   docker compose --profile signals up -d   # dip-watch 포함
+#   docker compose --profile strategy up -d  # LLM 심사 게이트웨이 포함
+#
+# Kill Switch (컨테이너 재시작 없이 주문 차단):
+#   core kill-switch on --reason "사유"
+#   core kill-switch off
+#
+# 모든 상태는 ./ki/data, ./toss/data, ./core/data SQLite에 영속되어
+# 서버 재시작 후에도 주문 원장·아웃박스·커서가 복원된다.
+
+name: ai-manager
+
+x-ki-service: &ki-service
+  build: ./ki
+  env_file:
+    - ./core/.env
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+x-ki-env: &ki-env
+  KIS_ENV: real
+  KI_DB_PATH: /app/data/ki.db
+
+x-ki-healthcheck: &ki-healthcheck
+  test:
+    - CMD
+    - python
+    - -c
+    - import sqlite3; sqlite3.connect('/app/data/ki.db').execute('select 1')
+  interval: 60s
+  timeout: 10s
+  retries: 3
+
+services:
+  notification:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
+    env_file:
+      - ./core/.env
+    environment:
+      CORE_DATABASE_PATH: /app/runtime/core/core.db
+      CORE_KILL_SWITCH_PATH: /app/runtime/core/kill-switch.json
+      KI_DB_PATH: /app/runtime/ki/ki.db
+      TOSS_DB_PATH: /app/runtime/toss/toss.db
+    volumes:
+      - ./core/data:/app/runtime/core
+      - ./ki/data:/app/runtime/ki
+      - ./toss/data:/app/runtime/toss
+      - ./spool:/app/runtime/spool
+    restart: unless-stopped
+    command: ["core", "notify-worker", "--sync", "--interval", "5"]
+    healthcheck:
+      test: ["CMD", "core", "outbox", "--limit", "1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  ki-reconcile:
+    <<: *ki-service
+    environment:
+      <<: *ki-env
+    volumes:
+      - ./ki/data:/app/data
+      - ~/.cache/ki:/root/.cache/ki
+    command: ["ki", "worker", "--interval", "60"]
+    healthcheck: *ki-healthcheck
+
+  ki-market-data:
+    <<: *ki-service
+    environment:
+      <<: *ki-env
+      KIS_ORDERBOOK_SYMBOL: ${KIS_ORDERBOOK_SYMBOL:-AAPL}
+      KIS_TRADE_SYMBOL: ${KIS_TRADE_SYMBOL:-GOOGL}
+      KIS_MARKET_SESSION: ${KIS_MARKET_SESSION:-regular}
+    volumes:
+      - ./ki/data:/app/data
+    command: ["python", "-m", "ki.market_data"]
+    healthcheck: *ki-healthcheck
+
+  ki-dip-watch:
+    <<: *ki-service
+    environment:
+      <<: *ki-env
+      KIS_DIP_SYMBOL: ${KIS_DIP_SYMBOL:-QCOM}
+      KIS_DIP_QUANTITY: ${KIS_DIP_QUANTITY:-4}
+      KIS_DIP_TRANCHES: ${KIS_DIP_TRANCHES:-1,1,2}
+      KIS_DIP_NEXT_TRANCHE_DROP_PCT: ${KIS_DIP_NEXT_TRANCHE_DROP_PCT:-3}
+      KIS_DIP_WATCH_LOW: ${KIS_DIP_WATCH_LOW:-175}
+      KIS_DIP_WATCH_HIGH: ${KIS_DIP_WATCH_HIGH:-200}
+      KIS_DIP_MIN_DRAWDOWN_PCT: ${KIS_DIP_MIN_DRAWDOWN_PCT:-5}
+      KIS_DIP_REBOUND_PCT: ${KIS_DIP_REBOUND_PCT:-1.5}
+      KIS_DIP_REFERENCE_REBOUND_PCT: ${KIS_DIP_REFERENCE_REBOUND_PCT:-0.5}
+    volumes:
+      - ./ki/data:/app/data
+      - ~/.cache/ki:/root/.cache/ki
+    profiles:
+      - signals
+    command:
+      - sh
+      - -c
+      - >-
+        ki dip-watch "$${KIS_DIP_SYMBOL}" "$${KIS_DIP_QUANTITY}"
+        --tranches "$${KIS_DIP_TRANCHES}"
+        --next-tranche-drop-pct "$${KIS_DIP_NEXT_TRANCHE_DROP_PCT}"
+        --watch-low "$${KIS_DIP_WATCH_LOW}"
+        --watch-high "$${KIS_DIP_WATCH_HIGH}"
+        --min-drawdown-pct "$${KIS_DIP_MIN_DRAWDOWN_PCT}"
+        --rebound-pct "$${KIS_DIP_REBOUND_PCT}"
+        --reference QQQ --reference SOXX
+        --reference-rebound-pct "$${KIS_DIP_REFERENCE_REBOUND_PCT}"
+        --interval 30
+    healthcheck: *ki-healthcheck
+
+  # 매수 후보 심사 워커.
+  #
+  # 브로커 키를 쓴다. 기준 현재가를 직접 조회해야 하기 때문이다.
+  # 에이전트와는 ./spool 로만 대화하고, 같은 네트워크에 두지 않는다.
+  strategy-review:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
+    env_file:
+      - ./core/.env
+    environment:
+      CORE_DATABASE_PATH: /app/runtime/core/core.db
+      CORE_KILL_SWITCH_PATH: /app/runtime/core/kill-switch.json
+      CORE_STRATEGY_SPOOL_PATH: /app/runtime/spool
+      CORE_STRATEGY_PROMPT_PATH: /app/prompts/reviewer.md
+      KI_DB_PATH: /app/runtime/ki/ki.db
+      TOSS_DB_PATH: /app/runtime/toss/toss.db
+    volumes:
+      - ./core/data:/app/runtime/core
+      - ./ki/data:/app/runtime/ki
+      - ./toss/data:/app/runtime/toss
+      - ./spool:/app/runtime/spool
+      - ./mind/prompts:/app/prompts:ro
+    profiles:
+      - strategy
+    restart: unless-stopped
+    command: ["core", "strategy-worker", "--interval", "30"]
+    healthcheck:
+      test: ["CMD", "core", "strategy-stats", "--limit", "1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # LLM 심사 게이트웨이.
+  #
+  # 브로커 키를 주입하지 않는다. core/.env 를 env_file 로 걸지 않는 것이
+  # 이 서비스의 핵심이다. 다른 서비스와 네트워크도 공유하지 않으므로
+  # 증권사 API 는 이 컨테이너에서 닿지 않는다.
+  #
+  # 워커와는 ./spool 볼륨으로만 대화한다. docker.sock 을 주지 않기 위함이다.
+  #
+  # CLI 전환: dockerfile 을 Dockerfile.claude 로 바꾸고
+  #           secrets/claude 를 /home/agent/.claude 에 마운트한다.
+  strategy-agent:
+    build:
+      context: ./mind
+      dockerfile: Dockerfile.codex
+    environment:
+      AGENT_ROLE: ${AGENT_ROLE:-reviewer}
+      SPOOL_DIR: /spool
+      POLL_INTERVAL: ${AGENT_POLL_INTERVAL:-2}
+    volumes:
+      - ./secrets/codex:/home/agent/.codex:rw
+      - ./mind/prompts:/prompts:ro
+      - ./mind/schema:/schema:ro
+      - ./spool:/spool:rw
+    networks:
+      - llm
+    profiles:
+      - strategy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /work
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "agent-health"]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  # 브로커 게이트웨이가 붙는 기본 네트워크와 분리한다.
+  llm:
+    driver: bridge
