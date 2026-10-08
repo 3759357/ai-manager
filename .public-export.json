@@ -5,7 +5,7 @@
     ".githooks/commit-msg": "6d6c1cb5ed8bc92749df5231b75a7c321604bcbc532e302989e54452672b50bb",
     ".githooks/post-commit": "80d96d017df93aadad195e4c096f350a7118938bed510cab4ebe6498b7af3f62",
     ".gitignore": "7141404de5b99cbfa111f5480c1eeebec594c875b52ded0d52f9cbe90ac6274c",
-    "README.md": "7f546fe70a5c40d5cf080a0ce82010c1a6f15cf6ae7f1d27ab43d2356fa9015e",
+    "README.md": "1774b53856eb02124b05d3d7c488847e971444ec99bda1c47bddb3b74be3e167",
     "core/.env.example": "590d916ee985b9cceeadbadc59ab7c98ef5daeaf26cd449ad5f1e4fe331dceb7",
     "core/Dockerfile": "dd9c591ac5a3b7bf4d5ba60ecb47c624d1575601ccbdcbd56c1c3760b99de7d8",
     "core/README.md": "54c461c87c281134ab8c76f682dea68fa74ad59a2d2a4762d3a5f7a5cbaec0cd",

@@ -35,6 +35,8 @@
 Python 3.11 이상에서 저장소 루트를 기준으로 실행합니다.
 
 ```sh
+git clone https://github.com/3759357/ai-manager.git
+cd ai-manager
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ki -e toss -e 'core[push]'
