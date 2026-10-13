@@ -295,6 +295,40 @@ planner 사용 시 로그 명령에 `-f docker-compose.planner.yml`을 추가하
 GitHub는 소스 백업이며 이 데이터의 백업을 대신하지 않습니다.
 오래된 릴리스·이미지·배포 로그의 자동 정리와 DB 백업 스케줄은 현재 제공하지 않습니다.
 
+## 서버 이전
+
+새 서버는 [최초 설치](#ubuntu-서버-최초-설치)대로 구성하고, 기존 서버의 `shared/`에서 운영 상태만 옮깁니다.
+코드(`releases/`)와 서버 Git 저장소는 옮기지 않고 새로 push합니다.
+
+| 옮기는 것 | 위치 | 비고 |
+| --- | --- | --- |
+| 보고·지시·투자논리·판단 원장 | `shared/core/data/manager/` | SQLite. 쓰기 중인 worker를 멈춘 뒤 복사 |
+| 브로커 원장 | `shared/ki/data/`, `shared/toss/data/` | 주문·체결·대사 기록 |
+| 설정 | `shared/core/.env`, `shared/deploy.env` | 권한 600 유지 |
+| APNs 키 | `shared/secrets/apns.p8` | 권한 600 유지 |
+
+| 옮기지 않는 것 | 이유 |
+| --- | --- |
+| `shared/secrets/codex-planner/` | 서버에 묶인 로그인 정보. 새 서버에서 `planner-login.sh`로 다시 로그인 |
+| `~/.cache/ki` 토큰 캐시 | 새 서버에서 자동으로 다시 발급 |
+| `releases/`, `current`, `logs/` | 새 서버에서 배포할 때 다시 생성 |
+
+순서:
+
+1. **기존 서버**에서 컨테이너를 멈춥니다. 복사 중 DB가 바뀌지 않게 하기 위해서입니다.
+   ```sh
+   cd "$HOME/ai-manager/current"
+   docker compose -f docker-compose.reports.yml -f docker-compose.planner.yml stop
+   ```
+   `trading` 묶음도 쓰고 있다면 `docker compose -f docker-compose.yml stop`도 실행합니다.
+2. 위 표의 파일을 새 서버의 같은 경로로 복사합니다. 계좌 데이터와 키가 들어 있으므로 SSH로만 옮기고 권한을 유지합니다.
+3. 내 PC에서 `server` remote 주소를 새 서버로 바꾸고 `git push server main`으로 배포합니다.
+4. LLM을 쓰면 **새 서버**에서 `~/ai-manager/current/deploy/planner-login.sh --enable`을 실행합니다.
+5. `ai-manager reports --json`, `ai-manager thesis list`로 이전 기록이 보이는지 확인합니다.
+6. iPhone 앱에 새 서버 주소와 [호스트 공개키](#iphone-연결)를 등록하고, 증권사 API에 허용 IP 조건이 있으면 새 IP로 바꿉니다.
+7. 확인이 끝나면 기존 서버의 `shared/`를 안전하게 삭제하거나 암호화해 보관합니다. 두 서버를 동시에 켜 두면
+   같은 계좌에 대한 작업과 알림이 중복될 수 있습니다.
+
 ## iPhone 연결
 
 1. [iOS 프로젝트](../ios/README.md)를 시뮬레이터 또는 본인의 서명으로 빌드합니다.

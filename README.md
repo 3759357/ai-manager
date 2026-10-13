@@ -79,6 +79,36 @@ docker compose -f docker-compose.reports.yml up -d --build
 | 배포 확인·실패·백업 | [운영 확인과 복구](docs/deployment.md#운영-확인과-복구) |
 | iPhone에서 서버 연결 | [SSH와 서버 호스트 공개키 등록](docs/deployment.md#iphone-연결) |
 
+### 서버에 필요한 것
+
+SSH로 접속되는 **Ubuntu** 서버(클라우드 VM이나 집의 PC 모두 가능), 브로커 키를 넣은 `.env`, 저장소의 배포 스크립트가 있으면
+새 서버를 처음부터 구성할 수 있습니다. 배포 도구는 Ubuntu와 Docker를 전제로 하며, 다른 OS에서는 위의
+`docker compose` 실행만 가능합니다.
+
+```sh
+sudo bash deploy/bootstrap-ubuntu.sh ubuntu                # 서버: Docker 설치
+AI_MANAGER_SERVER=myserver ./deploy/install-server.sh      # 내 PC: 배포 실행기·서버 훅 설치
+# 서버: ~/ai-manager/shared/core/.env에 키 입력
+git push server main                                       # 내 PC: 빌드 → 테스트 → 기동
+~/ai-manager/current/deploy/planner-login.sh --enable      # 서버: LLM 사용 시
+```
+
+`.env`만으로 끝나지 않는 항목은 다음과 같습니다.
+
+| 항목 | 준비 방법 |
+| --- | --- |
+| LLM 판단기(planner) 인증 | 서버마다 `planner-login.sh`로 로그인. 인증 파일을 다른 서버에서 복사하지 않음 |
+| APNs 푸시 | 유료 Apple 개발자 계정의 `.p8` 키를 `shared/secrets/`에 두고 키 ID 등은 `.env`에 입력 |
+| iPhone 앱 | 본인 서명으로 빌드하고 서버 주소·SSH 키·서버 호스트 공개키 등록 |
+| 증권사 API | 허용 IP 등록 같은 조건이 있으면 서버 IP로 설정 |
+
+### 서버를 옮길 때
+
+코드와 배포는 새 서버에서 다시 만들면 되지만, 운영 상태는 `shared/`에만 있습니다.
+투자논리 카드·판단 이력·보고서·지시 기록(SQLite)과 키 파일을 옮기지 않으면 새 서버는 빈 상태로 시작합니다.
+LLM 인증은 새로 로그인하고, iPhone 앱에는 새 서버 주소와 호스트 공개키를 다시 등록합니다.
+절차는 [서버 이전](docs/deployment.md#서버-이전)을 따릅니다.
+
 서버는 `releases/`의 코드와 `shared/`의 설정·데이터를 분리합니다. 서버 준비가 끝나면 다음 흐름으로 갱신합니다.
 
 ```sh
@@ -86,7 +116,7 @@ git push origin main  # GitHub에 코드 공개
 git push server main  # 서버에서 빌드 → 테스트 → 기동 확인 → 릴리스 전환
 ```
 
-`server` remote는 최초 설치 때 별도로 등록합니다. GitHub push에 연동되는 Actions 워크플로는 아직 제공하지 않습니다.
+`server` remote는 최초 설치 때 별도로 등록합니다. GitHub Actions는 테스트만 실행하며 서버 배포에는 연결하지 않습니다.
 로컬 `main` 커밋 시 서버로 자동 push하는 훅은 직접 활성화할 수 있습니다.
 컨테이너는 보고 처리·투자논리 점검·판단 기록을 담당합니다. 투자 지시의 접수만으로 매매를 실행하지 않습니다.
 
