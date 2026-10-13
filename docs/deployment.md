@@ -170,8 +170,14 @@ wrapper를 짧은 이름으로 쓰려면 SSH 셸의 PATH에 `~/.local/bin`을 �
 
 ### LLM 계획기
 
-첫 reports 배포가 끝난 뒤 [planner 인증 절차](configuration.md#llm-계획기-인증)를 진행합니다.
-그 다음 **서버**의 `~/ai-manager/shared/deploy.env`를 편집합니다.
+첫 reports 배포가 끝난 뒤 **서버**에서 한 줄로 인증과 활성화를 끝낼 수 있습니다.
+
+```sh
+~/ai-manager/current/deploy/planner-login.sh --enable
+```
+
+자세한 내용은 [planner 인증 절차](configuration.md#llm-계획기-인증)를 참고합니다.
+수동으로 하려면 인증 후 **서버**의 `~/ai-manager/shared/deploy.env`를 편집합니다.
 
 ```dotenv
 AI_MANAGER_DEPLOY_STACKS="reports planner"

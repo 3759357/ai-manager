@@ -112,24 +112,42 @@ APNs는 키·서명·기기 등록까지 별도 준비해야 하며 실제 기�
 본인이 요청한 로그인 코드만 브라우저에 입력합니다. [공식 Codex 인증 안내](https://learn.chatgpt.com/docs/auth)를 참고합니다.
 
 ```bash
+# 서버에서 실행
+~/ai-manager/current/deploy/planner-login.sh             # 기기 코드 로그인
+~/ai-manager/current/deploy/planner-login.sh --enable    # 로그인 후 planner를 켜고 다시 배포
+~/ai-manager/current/deploy/planner-login.sh --status    # 상태만 확인
+```
+
+스크립트는 `shared/secrets/codex-planner`를 권한 700으로 만들고, planner 이미지를 빌드한 뒤
+전용 컨테이너 안에서 `codex login --device-auth`를 실행합니다. 생성된 `auth.json`은 같은 컨테이너에서
+권한 600으로 바꾸므로 sudo가 필요 없습니다. `--enable`은 로그인이 성공했을 때만
+`shared/deploy.env`의 `AI_MANAGER_DEPLOY_STACKS`에 `planner`를 추가하고 재배포합니다.
+
+<details>
+<summary>스크립트가 실행하는 명령</summary>
+
+```bash
 cd "$HOME/ai-manager/current"
-mkdir -p secrets/codex-planner
-chmod 700 secrets/codex-planner
 docker compose -f docker-compose.reports.yml -f docker-compose.planner.yml build planner
 docker compose -f docker-compose.reports.yml -f docker-compose.planner.yml \
     run --rm --no-deps --entrypoint codex planner \
     -c 'cli_auth_credentials_store="file"' login --device-auth
-sudo chmod 600 secrets/codex-planner/auth.json
 docker compose -f docker-compose.reports.yml -f docker-compose.planner.yml \
-    run --rm --no-deps --entrypoint codex planner login status
+    run --rm --no-deps -T --entrypoint codex planner login status
 ```
 
-`file` 저장은 전용 `CODEX_HOME`의 `auth.json`을 사용합니다. 현재 planner는 root로 실행하므로
-생성된 파일 권한 변경에 sudo가 필요할 수 있습니다. 토큰 갱신 때문에 이 디렉터리는 읽기·쓰기로 마운트합니다.
+</details>
+
+`file` 저장은 전용 `CODEX_HOME`의 `auth.json`을 사용합니다. 토큰 갱신 때문에 이 디렉터리는 읽기·쓰기로 마운트합니다.
 개인 `~/.codex` 전체를 복사하지 않습니다. 캐시도 비밀번호처럼 취급합니다.
 
-무인 자동화의 인증에는 공식 안내가 API 키 사용을 권장합니다. 기존 API 키를 사용하는 경우
-동일한 전용 컨테이너에서 `codex login --with-api-key`의 표준입력으로 전달합니다.
+무인 자동화의 인증에는 공식 안내가 API 키 사용을 권장합니다. API 키는 명령 인자가 아니라 표준입력으로 넘깁니다.
+
+```bash
+~/ai-manager/current/deploy/planner-login.sh --api-key < ~/openai-key.txt && shred -u ~/openai-key.txt
+```
+
+키는 셸 기록과 프로세스 목록에 남지 않도록 인자·환경변수로 받지 않습니다.
 루트 `.env`에 키를 추가하는 것만으로 planner에 전달되지는 않습니다.
 로그인 상태 확인은 실제 모델 응답 성공까지 보장하지 않습니다.
 인증 후 [planner 배포 단계](deployment.md#llm-계획기)로 돌아갑니다.
