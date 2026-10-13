@@ -42,26 +42,18 @@ class PushStore:
                 inserted = db.execute('INSERT OR IGNORE INTO push_events VALUES (?,?,?,?)', (event_id, row['id'], row['state'], row['updated_at'])).rowcount
                 if inserted:
                     db.execute("INSERT OR IGNORE INTO push_delivery(event_id,device_id,state) SELECT ?,id,'pending' FROM push_device WHERE active=1", (event_id,))
-            has_fills = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_fills'").fetchone()
-            if has_fills:
-                for row in db.execute('SELECT id,instruction_id,created_at FROM paper_fills').fetchall():
-                    event_id = str(uuid.uuid5(uuid.NAMESPACE_URL, 'ai-manager:paper-fill:' + row['id']))
-                    inserted = db.execute('INSERT OR IGNORE INTO push_events VALUES (?,?,?,?)', (event_id, row['instruction_id'], 'paper_fill', row['created_at'])).rowcount
-                    if inserted:
-                        db.execute("INSERT OR IGNORE INTO push_delivery(event_id,device_id,state) SELECT ?,id,'pending' FROM push_device WHERE active=1", (event_id,))
 
     def deliver_once(self, sender):
         self.collect()
         with self.store.connect() as db:
             row = db.execute('''SELECT d.*,e.instruction_id,e.kind,p.token,p.environment FROM push_delivery d
                 JOIN push_events e ON e.id=d.event_id JOIN push_device p ON p.id=d.device_id
-                WHERE d.state='pending' AND d.next_attempt<=? AND p.active=1 ORDER BY e.created_at LIMIT 1''', (time.time(),)).fetchone()
+                WHERE d.state='pending' AND d.next_attempt<=? AND p.active=1
+                  AND e.kind IN ('completed','failed') ORDER BY e.created_at LIMIT 1''', (time.time(),)).fetchone()
         if row is None:
             return {'push': 'idle'}
         payload = {'aps': {'alert': {'title': 'AI Manager', 'body': '투자 지시 처리 결과가 도착했습니다. 앱에서 확인하세요.'}, 'sound': 'default'},
                    'instruction_id': row['instruction_id'], 'event_id': row['event_id']}
-        if row['kind'] == 'paper_fill':
-            payload['aps']['alert']['body'] = '모의 거래가 체결되었습니다. 앱에서 확인하세요.'
         try:
             status, reason = sender(row['token'], row['environment'], payload, row['event_id'])
         except Exception:
@@ -81,7 +73,8 @@ class PushStore:
 
     def status(self):
         with self.store.connect() as db:
-            counts = {r['state']: r['n'] for r in db.execute('SELECT state,count(*) n FROM push_delivery GROUP BY state')}
+            counts = {r['state']: r['n'] for r in db.execute('''SELECT d.state,count(*) n FROM push_delivery d
+                JOIN push_events e ON e.id=d.event_id WHERE e.kind IN ('completed','failed') GROUP BY d.state''')}
             active = db.execute('SELECT count(*) FROM push_device WHERE active=1').fetchone()[0]
         return {'configured': APNsSender.configured(), 'active_devices': active, 'delivery_counts': counts}
 

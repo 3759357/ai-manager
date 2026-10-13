@@ -9,7 +9,6 @@ services:
       - ./core/.env
     environment:
       AI_MANAGER_DATA_DIR: /app/runtime/manager
-      AI_MANAGER_EXECUTION_MODE: paper
       KIS_ALLOW_ORDERS: "false"
       TOSS_ALLOW_ORDERS: "false"
     volumes:

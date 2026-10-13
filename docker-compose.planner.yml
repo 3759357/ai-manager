@@ -1,4 +1,4 @@
-# Explicit opt-in planner; receives only instructions and paper portfolio state.
+# Explicit opt-in research gateway; receives thesis and judgment requests.
 name: ai-manager-reports
 services:
   report-worker:
@@ -10,7 +10,7 @@ services:
       dockerfile: Dockerfile.codex
     user: "0:0"
     environment:
-      AGENT_ROLE: planner
+      AGENT_ROLE: judge
       CODEX_HOME: /home/agent/.codex
       SPOOL_DIR: /spool
       POLL_INTERVAL: "2"

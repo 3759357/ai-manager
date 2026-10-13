@@ -163,10 +163,6 @@ def main(argv=None):
     update.add_argument("request_id")
     update.add_argument("state", choices=("running", "completed", "failed"))
     update.add_argument("--result")
-    engine = sub.add_parser("engine", help="모의 운용 상태·시작·중지")
-    engine.add_argument("action", choices=("status", "start", "stop"), default="status", nargs="?")
-    pilot = sub.add_parser("pilot", help="실전 시세 모의 운용과 가상 계좌 위험 계기판")
-    pilot.add_argument("action", choices=("status", "start", "stop"), default="status", nargs="?")
     device = sub.add_parser("register-device")
     device.add_argument("device_id")
     device.add_argument("token")
@@ -244,19 +240,7 @@ def main(argv=None):
     os.umask(0o077)
     store = RequestStore(root)
     try:
-        if args.command in {"engine", "pilot"}:
-            from core.automation import PaperEngine
-            from core.pilot import Pilot
-            engine = PaperEngine(store)
-            pilot = Pilot(store)
-            if args.command == 'pilot':
-                result = pilot.status() if args.action == 'status' else pilot.control(args.action == 'start')
-            else:
-                if args.action == 'stop':
-                    pilot.control(False)
-                result = engine.control(None if args.action == "status" else args.action == "start")
-                result['pilot'] = pilot.status()
-        elif args.command in {"judgments", "allocation"}:
+        if args.command in {"judgments", "allocation"}:
             result = run_judgment_command(store, args)
             if result is None:
                 return 0
@@ -308,7 +292,7 @@ def main(argv=None):
         else:
             while True:
                 result = store.run_once()
-                run_automation_once(store)
+                run_background_once(store)
                 if args.once:
                     break
                 # Logs identify jobs, never print the user's account report.
@@ -431,34 +415,28 @@ def run_judgment_command(store, args):
     raise ValueError("알 수 없는 judgments 명령")
 
 
-def run_automation_once(store):
-    from core.automation import PaperEngine, market_quote, spool_planner
+def run_background_once(store):
+    """Ingest research and deliver notifications without executing instructions."""
     from core.push import APNsSender, PushStore
-    fd = os.open(store.root / "automation.lock", os.O_CREAT | os.O_RDWR, 0o600)
+    fd = os.open(store.root / "background.lock", os.O_CREAT | os.O_RDWR, 0o600)
     with os.fdopen(fd, "w") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return
-        engine = PaperEngine(store)
-        planner = spool_planner(store.root / 'spool') if os.getenv('AI_MANAGER_PLANNER_ENABLED') == 'true' else None
-        from core.pilot import Pilot, live_quote
         from core.theses import ThesisStore
         from core.judgments import JudgmentStore
         ThesisStore(store).ingest_ai_drafts(store.root / "spool")
         judgments = JudgmentStore(store)
         judgments.ingest(store.root / "spool")
-        if planner is not None:
+        if os.getenv('AI_MANAGER_PLANNER_ENABLED') == 'true':
             judgments.request_daily(store.root / "spool")
-        pilot = Pilot(store)
-        pilot.tick(engine, planner)
-        engine.run_once(live_quote if pilot.status()['enabled'] else market_quote, planner)
         pushes = PushStore(store)
         if APNsSender.configured():
             # Reuse the HTTP/2 connection and signing token across polling cycles.
-            if not hasattr(run_automation_once, 'sender'):
-                run_automation_once.sender = APNsSender()
-            pushes.deliver_once(run_automation_once.sender)
+            if not hasattr(run_background_once, 'sender'):
+                run_background_once.sender = APNsSender()
+            pushes.deliver_once(run_background_once.sender)
         else:
             pushes.collect()
 

@@ -124,7 +124,7 @@ final class AppModel: ObservableObject {
             UserDefaults.standard.removeObject(forKey: key)
             instructionPending = false; instructionDraft = ""
             updateInstruction(item)
-            instructionNotice = "지시를 저장했습니다. 모의 운용이 시작되면 순서대로 검토합니다."
+            instructionNotice = "지시를 저장했습니다. 처리 상태와 결과는 지시함에서 확인할 수 있습니다. 자동 매매는 실행하지 않습니다."
         } catch { instructionNotice = "\(error.localizedDescription) 같은 지시 ID로 재확인할 수 있습니다." }
     }
 
@@ -151,12 +151,6 @@ final class AppModel: ObservableObject {
     }
 
     func showDemo() { demo = true; receipts = [DemoData.receipt]; notice = nil }
-    func engineControl(_ action: String) async throws -> EngineStatus {
-        try await fetch(["engine", action])
-    }
-    func pilotControl(_ action: String) async throws -> PilotStatus {
-        try await fetch(["pilot", action])
-    }
 
     func registerPush() async {
         guard profile.isConfigured, !demo, PushCenter.shared.enabled, let token = PushCenter.shared.token else { return }

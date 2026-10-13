@@ -2,7 +2,7 @@
 # 서버 배포 실행기. post-receive 훅이 main push마다 호출한다.
 #
 # 배포할 서비스 묶음은 서버 설정 $deploy_root/shared/deploy.env 의 AI_MANAGER_DEPLOY_STACKS로 고른다.
-#   reports  : 보고·지시·모의 운용 워커 (docker-compose.reports.yml, 프로젝트 ai-manager-reports)
+#   reports  : 보고·지시·판단 기록 워커 (docker-compose.reports.yml, 프로젝트 ai-manager-reports)
 #   planner  : reports + Codex 계획기 (docker-compose.planner.yml)
 #   trading  : 시세 수집·대사·알림 (docker-compose.yml, 프로젝트 ai-manager)
 # 기본값은 "reports planner". trading은 명시해야만 기동한다.

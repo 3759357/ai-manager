@@ -16,4 +16,4 @@ ssh "$host" 'f=~/ai-manager/shared/deploy.env; if [ ! -f "$f" ]; then
   mkdir -p ~/ai-manager/shared
   printf "%s\n" "# 배포할 서비스 묶음: reports, planner, trading(시세·대사·알림)" "AI_MANAGER_DEPLOY_STACKS=\"reports planner\"" > "$f"
   echo "created $f"; else echo "kept $f"; fi; cat "$f"'
-echo "설치 완료. 이제 main에 커밋하면 자동으로 서버에 배포됩니다."
+echo "설치 완료. server remote의 main에 push하면 서버 배포가 시작됩니다. 로컬 커밋 자동 push는 별도 훅 설정이 필요합니다."

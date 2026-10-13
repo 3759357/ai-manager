@@ -1,6 +1,6 @@
 # AI Manager for iPhone
 
-iOS 17 이상 SwiftUI 앱입니다. 보고함·지시함·모의 운용·위험 계기판·SSH PTY 터미널을 제공합니다.
+iOS 17 이상 SwiftUI 앱입니다. 보고함·지시함·푸시 알림·SSH PTY 터미널을 제공합니다.
 
 ```sh
 xcodebuild -project ios/AIManager.xcodeproj -scheme AIManager \
@@ -13,6 +13,6 @@ Xcode에서 프로젝트를 열고 시뮬레이터로 실행합니다. 첫 화�
 
 실제 서버 연결에는 주소·포트·사용자·SSH 개인키·이미 신뢰하는 경로에서 얻은 서버 호스트 공개키가 필요합니다.
 개인키는 Keychain에 보관하고 등록한 서버 키만 신뢰합니다. 터미널은 SSH 계정의 셸 권한으로 동작합니다.
-보고 요청과 모의 상태 조회에는 서버의 reports worker가 필요합니다.
+보고 생성에는 서버의 reports worker가 필요합니다. 투자 지시는 접수·이력 관리하며 자동 매매하지 않습니다.
 APNs는 선택 기능이며 별도 팀·서버 키·프로파일·기기 등록이 필요합니다.
 [데모](../docs/demo.md) · [환경과 배포](../docs/deployment.md)

@@ -11,7 +11,7 @@ python -m unittest discover -s toss/tests -q
 python -m unittest discover -s core/tests -q
 ```
 
-요청 중복 방지·재확인, 모의 체결, 리스크 차단, 주문 결과 불명 복구,
+요청 중복 방지·재확인, 리스크 차단, 브로커 주문 결과 불명 복구,
 브로커 응답 정규화, 승인 버전과 판단 만료를 검증합니다.
 
 ## 로컬 CLI 데모
@@ -19,7 +19,7 @@ python -m unittest discover -s core/tests -q
 ```sh
 core brokers
 core portfolio-risk --cash 5000 --position AAPL:5:100 --pending-buy 0
-ai-manager --data-dir ./data/demo engine status
+ai-manager --data-dir ./data/demo reports --json
 ai-manager --data-dir ./data/demo thesis import core/seed/theses-2026-09-25.json
 ai-manager --data-dir ./data/demo thesis list
 ai-manager --data-dir ./data/demo allocation --input core/tests/fixtures/allocation_golden.json

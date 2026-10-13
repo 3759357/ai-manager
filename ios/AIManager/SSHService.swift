@@ -9,7 +9,7 @@ struct SSHSecret: Codable { var privateKey: String; var passphrase: String }
 enum KeyStore {
     private static var query: [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: "com.example.ai-manager.ssh", kSecAttrAccount as String: "primary"]
+         kSecAttrService as String: "\(Bundle.main.bundleIdentifier ?? "com.example.ai-manager").ssh", kSecAttrAccount as String: "primary"]
     }
     static func save(_ secret: SSHSecret) throws {
         let data = try JSONEncoder().encode(secret)

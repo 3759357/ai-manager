@@ -6,7 +6,7 @@ final class AIManagerTests: XCTestCase {
         let data = Data(#"{"schema_version":1,"instructions":[{"id":"phone-1","message":"비중 검토","state":"waiting","created_at":"now","updated_at":"now","result":null,"events":[{"state":"waiting","at":"now","result":null}]}]}"#.utf8)
         let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase
         let list = try decoder.decode(InstructionList.self, from: data)
-        XCTAssertEqual(list.instructions.first?.stateLabel, "운용 처리 대기")
+        XCTAssertEqual(list.instructions.first?.stateLabel, "검토 대기")
         XCTAssertNil(list.instructions.first?.result)
         XCTAssertEqual(list.instructions.first?.events.count, 1)
     }

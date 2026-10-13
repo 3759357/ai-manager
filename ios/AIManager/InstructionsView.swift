@@ -10,7 +10,7 @@ struct InvestmentInstruction: Codable, Identifiable {
     let events: [InstructionEvent]
     var stateLabel: String {
         switch state {
-        case "waiting": return "운용 처리 대기"
+        case "waiting": return "검토 대기"
         case "running": return "처리 중"
         case "completed": return "처리 완료"
         case "failed": return "처리 실패"
@@ -28,11 +28,11 @@ struct InstructionsView: View {
     var body: some View {
         NavigationStack {
             List {
-                AutomationControls()
+                PushNotificationControls()
                 Section("새 투자 지시") {
                     TextField("예: 보유 종목의 비중 조정안을 검토해줘", text: $model.instructionDraft, axis: .vertical)
                         .lineLimit(3...8).disabled(model.instructionPending || model.instructionBusy)
-                    Text("현재 모의 운용 전용입니다. 자연어 지시는 서버의 AI 계획기 연결이 필요합니다. 실제 계좌에는 주문하지 않습니다.")
+                    Text("투자 검토 요청과 처리 이력을 저장합니다. 접수한 지시는 자동 실행되지 않으며, 실제 주문은 전송하지 않습니다.")
                         .font(.caption).foregroundStyle(.secondary)
                     Button(model.instructionPending ? "같은 지시로 접수 재확인" : "지시 보내기") {
                         Task { await model.submitInstruction() }
