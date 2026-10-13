@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import sys
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from ki.client import KISError
@@ -63,6 +65,17 @@ def _parser() -> argparse.ArgumentParser:
         "positions",
         help="KIS·Toss 보유 포지션·현금·예약 노출 통합 조회",
     )
+
+    guard = subparsers.add_parser("guard", help="리스크관리부 정책 조회·주문 의도 판정·수량 계산 (주문 전송 없음)")
+    guard_sub = guard.add_subparsers(dest="guard_action", required=True)
+    guard_sub.add_parser("policy", help="적용 중인 정책 표시")
+    guard_check = guard_sub.add_parser("check", help="JSON의 intent·account·quote로 허용/차단 판정")
+    guard_check.add_argument("input", help="JSON 파일 경로, '-'이면 표준입력")
+    guard_size = guard_sub.add_parser("size", help="손절 거리로 트레이딩북 1건 수량 계산")
+    guard_size.add_argument("--entry", required=True)
+    guard_size.add_argument("--stop", required=True)
+    guard_size.add_argument("--book-nav", required=True)
+    guard_size.add_argument("--step", default="1", help="수량 단위 (소수점 주식이면 0.0001 등)")
 
     kill_switch = subparsers.add_parser(
         "kill-switch",
@@ -395,6 +408,26 @@ def _intent_risk_gate(
     return result
 
 
+def _guard_command(args: argparse.Namespace, settings: Settings) -> Any:
+    from core import guard
+
+    policy = guard.load_policy()
+    if args.guard_action == "policy":
+        return policy.to_dict()
+    if args.guard_action == "size":
+        quantity = guard.size_trade(Decimal(args.entry), Decimal(args.stop), Decimal(args.book_nav), policy,
+                                    step=Decimal(args.step))
+        return {"quantity": format(quantity, "f"), "policy_version": policy.version}
+    raw = sys.stdin.read() if args.input == "-" else Path(args.input).read_text(encoding="utf-8")
+    data = json.loads(raw)
+    account = guard.account_from_dict(data["account"])
+    if KillSwitch(settings.kill_switch_path).status()["active"] and not account.kill_switch_active:
+        account = dataclasses.replace(account, kill_switch_active=True)
+    decision = guard.evaluate(guard.intent_from_dict(data["intent"]), account,
+                              guard.quote_from_dict(data["quote"]), policy)
+    return decision.to_dict()
+
+
 def _selected_brokers(args: argparse.Namespace, settings: Settings) -> set[str]:
     if args.command == "compare-quotes":
         return {"kis", "toss"}
@@ -450,6 +483,9 @@ def main(argv: list[str] | None = None) -> None:
                     ).to_dict(),
                 ]
             )
+            return
+        if args.command == "guard":
+            _print(_guard_command(args, settings))
             return
         if args.command == "portfolio-risk":
             if args.live:

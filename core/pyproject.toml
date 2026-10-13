@@ -19,5 +19,8 @@ ai-manager = "core.manager_cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+core = ["policy/*.toml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,6 +1,6 @@
 # Core
 
-브로커 어댑터·공통 보고·리스크·투자논리·판단 원장을 관리합니다.
+브로커 어댑터·공통 보고·리스크관리부(guard)·투자논리·판단 원장을 관리합니다.
 설치는 [루트 안내](../README.md), 서버 설정은 [환경과 배포](../docs/deployment.md)를 참고합니다.
 
 ```sh
@@ -27,3 +27,22 @@ ai-manager report latest
 `ai-manager`에는 가상계좌와 자동 매매 실행기가 없습니다. 투자 지시는 접수·조회·취소·처리 결과 기록을 지원합니다.
 worker는 보고 생성, 투자논리 AI 초안·판단 응답 적재, 선택적 알림을 처리합니다.
 상세 하위 명령은 `core --help`, `ai-manager --help`에서 확인합니다.
+
+## 리스크관리부 (guard)
+
+`core/src/core/guard.py`는 LLM 없이 주문 의도를 허용·차단하는 결정론적 검증기입니다.
+한도는 버전이 있는 [`policy/v1.toml`](src/core/policy/v1.toml)에서만 읽고, 키가 빠지거나 남으면 로드를 거절합니다.
+주문을 만들거나 보내지 않으며, 아직 브로커 주문 경로에 연결하지 않았습니다.
+
+```sh
+core guard policy                                         # 적용 중인 정책
+core guard size --entry 500 --stop 480 --book-nav 10000   # 트레이딩북 1건 손실 1% 기준 수량
+core guard check intent.json                              # {"intent":…, "account":…, "quote":…} 판정
+```
+
+- 계좌 → 장부 → 전략 → 종목 → 주문 순으로 모두 검사하고 하나라도 걸리면 차단합니다.
+- 낙폭·주식 비중 상한·트레이딩북 NAV를 모르거나 스냅샷이 오래되면 매수를 막습니다.
+- 매도(위험 축소)는 호가 신선도·보유 수량·Kill Switch만 확인합니다. 공매도와 다른 장부 포지션 매도는 막습니다.
+- `check_alerts`는 시장·계좌 급락, 보유 종목 급변, 실적 예정, heartbeat 끊김을 경보로 만들며,
+  아웃박스 dedup 키로 같은 단계는 하루 한 번만 보냅니다. 자동으로 팔거나 막지 않습니다.
+- 환경변수 `AI_MANAGER_POLICY_PATH`로 다른 정책 파일을 지정할 수 있습니다.
