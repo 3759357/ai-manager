@@ -7,7 +7,8 @@ Ubuntu 서버에서 이미지 빌드·네트워크 없는 테스트·서비스 �
 원격 서버와 로컬 훅은 자동으로 설정되지 않습니다. 본인의 기존 SSH 인증과 bare 저장소를 준비한 뒤 설정합니다.
 
 ```sh
-AI_MANAGER_SERVER=ai-manager-server ./deploy/install-server.sh
+cp deploy/local.env.example deploy/local.env   # AI_MANAGER_SERVER에 서버 SSH 별칭 입력
+./deploy/install-server.sh
 ```
 
 설치 명령은 지정 서버에 파일을 씁니다. 설치만으로 배포하지 않으며 `server` remote의 `main` push가 배포를 시작합니다.

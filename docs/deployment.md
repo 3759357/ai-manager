@@ -129,7 +129,8 @@ nano "$HOME/ai-manager/shared/core/.env"
 **로컬 / 저장소 루트**:
 
 ```sh
-AI_MANAGER_SERVER=ai-manager-server ./deploy/install-server.sh
+./deploy/install-server.sh   # deploy/local.env의 AI_MANAGER_SERVER 사용
+# 또는 일회성: AI_MANAGER_SERVER=ai-manager-server ./deploy/install-server.sh
 git remote -v
 # server remote가 없을 때 한 번만 등록
 git remote add server ai-manager-server:~/repos/ai-manager.git

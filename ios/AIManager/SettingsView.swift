@@ -44,7 +44,7 @@ struct SettingsView: View {
                     }
                 }
                 Section {
-                    Text("Mac의 SSH 별칭 ai-manager-server는 아이폰에 자동으로 복사되지 않습니다. 실제 주소와 포트를 입력하세요.")
+                    Text("Mac에 설정한 SSH 별칭은 아이폰에 자동으로 복사되지 않습니다. 실제 주소와 포트를 입력하세요.")
                     Text("터미널은 SSH 접속만으로 사용할 수 있습니다. 보고함은 서버의 보고 워커가 실행되어 있어야 합니다.")
                 }.font(.caption).foregroundStyle(.secondary)
                 if let error { Section { Text(error).foregroundStyle(.orange) } }

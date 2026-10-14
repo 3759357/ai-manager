@@ -11,7 +11,8 @@ KIS의 `demo`는 증권사가 제공하는 별도 API 환경입니다. 제거된
 | 로컬 개발 | `core/.env` | 모듈의 `data/`, `secrets/` |
 | Ubuntu 릴리스 배포 | `~/ai-manager/shared/core/.env` | `~/ai-manager/shared/` |
 | 서버 배포 도구 | `~/ai-manager/shared/deploy.env` | 배포할 서비스 이름만 지정 |
-| iPhone 서명 | `ios/Config/Local.xcconfig` | 본인의 개발 팀·번들 설정 |
+| iPhone 서명 | `ios/Config/Local.xcconfig` | 본인의 개발 팀·번들 ID (`AI_MANAGER_BUNDLE_ID`) |
+| 내 PC의 배포 설정 | `deploy/local.env` | 서버 SSH 별칭(`AI_MANAGER_SERVER`)·공개본 폴더 |
 
 `current/core/.env`와 데이터 경로는 배포 도구가 `shared`로 연결합니다.
 릴리스 안에 키를 따로 복사하거나 `.env`를 매 배포마다 새로 만들지 않습니다.
@@ -29,6 +30,23 @@ export AI_MANAGER_ENV_PATH="$PWD/core/.env"
 Docker Compose는 `core/.env`를 `env_file`로 읽습니다. Compose의 `environment`에 지정한 값은
 이 파일보다 우선합니다. `.env` 변경 뒤 단순 `restart`는 컨테이너 환경을 갱신하지 않으므로
 로컬은 `up -d`, 릴리스 서버는 `~/ai-manager/bin/deploy.sh`로 다시 적용합니다.
+
+### 개인 값은 로컬 파일에만
+
+서버 주소, 번들 ID, 개발 팀, 키처럼 사람마다 다른 값은 코드와 문서에 쓰지 않습니다.
+저장소에는 형식만 보여 주는 `.example` 파일을 두고, 실제 값은 복사한 로컬 파일(Git 제외)에 넣습니다.
+
+| 예시 파일 (커밋됨) | 실제 파일 (Git 제외) | 담는 값 |
+| --- | --- | --- |
+| `core/.env.example` | `core/.env` | 브로커 키·계좌, 알림, APNs |
+| `deploy/local.env.example` | `deploy/local.env` | 서버 SSH 별칭, 공개본 폴더 |
+| `ios/Config/Local.xcconfig.example` | `ios/Config/Local.xcconfig` | Apple 개발 팀, 앱 번들 ID |
+
+```sh
+cp core/.env.example core/.env
+cp deploy/local.env.example deploy/local.env
+cp ios/Config/Local.xcconfig.example ios/Config/Local.xcconfig
+```
 
 ## 주요 환경변수
 
@@ -157,8 +175,8 @@ docker compose -f docker-compose.reports.yml -f docker-compose.planner.yml \
 저장소 루트에서 파일 내용 대신 추적 여부를 확인합니다.
 
 ```sh
-git ls-files -- core/.env secrets ios/Config/Local.xcconfig
-git check-ignore core/.env secrets/codex-planner/auth.json secrets/apns.p8 ios/Config/Local.xcconfig
+git ls-files -- core/.env secrets ios/Config/Local.xcconfig deploy/local.env
+git check-ignore core/.env secrets/codex-planner/auth.json secrets/apns.p8 ios/Config/Local.xcconfig deploy/local.env
 git diff --cached --stat
 ```
 

@@ -1,2 +1,4 @@
-// Copy to Local.xcconfig (ignored by Git), then fill in your Apple team ID.
+// Copy to Local.xcconfig (ignored by Git), then fill in your own values.
+// 번들 ID를 바꾸면 기기에서는 다른 앱으로 설치되며 저장된 SSH 키도 따로 관리됩니다.
 DEVELOPMENT_TEAM =
+AI_MANAGER_BUNDLE_ID = com.example.ai-manager

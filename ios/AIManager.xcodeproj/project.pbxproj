@@ -247,7 +247,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				MARKETING_VERSION = 0.2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.ai-manager;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_MANAGER_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) $(AI_MANAGER_SWIFT_FEATURES)";
@@ -268,7 +268,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				MARKETING_VERSION = 0.2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.ai-manager;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_MANAGER_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) $(AI_MANAGER_SWIFT_FEATURES)";
@@ -282,7 +282,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.ai-manager.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_MANAGER_BUNDLE_ID).tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AIManager.app/AIManager";
@@ -295,7 +295,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.ai-manager.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_MANAGER_BUNDLE_ID).tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AIManager.app/AIManager";

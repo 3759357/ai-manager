@@ -1,2 +1,4 @@
-// Machine-specific signing stays outside Git. Simulator builds need no team.
+// 공개 기본값. 실제 번들 ID와 개발 팀은 Local.xcconfig(Git 제외)에서 덮어씁니다.
+// Simulator builds need no team.
+AI_MANAGER_BUNDLE_ID = com.example.ai-manager
 #include? "Local.xcconfig"
