@@ -12,7 +12,8 @@ KIS의 `demo`는 증권사가 제공하는 별도 API 환경입니다. 제거된
 | Ubuntu 릴리스 배포 | `~/ai-manager/shared/core/.env` | `~/ai-manager/shared/` |
 | 서버 배포 도구 | `~/ai-manager/shared/deploy.env` | 배포할 서비스 이름만 지정 |
 | iPhone 서명 | `ios/Config/Local.xcconfig` | 본인의 개발 팀·번들 ID (`AI_MANAGER_BUNDLE_ID`) |
-| 내 PC의 배포 설정 | `deploy/local.env` | 서버 SSH 별칭(`AI_MANAGER_SERVER`)·공개본 폴더 |
+| 내 PC의 배포 설정 | `deploy/local.env` | 서버 SSH 별칭(`AI_MANAGER_SERVER`) |
+| 개인 문서 | `private/` | 기획·운용 메모 (폴더 전체 Git 제외) |
 
 `current/core/.env`와 데이터 경로는 배포 도구가 `shared`로 연결합니다.
 릴리스 안에 키를 따로 복사하거나 `.env`를 매 배포마다 새로 만들지 않습니다.
@@ -39,7 +40,7 @@ Docker Compose는 `core/.env`를 `env_file`로 읽습니다. Compose의 `environ
 | 예시 파일 (커밋됨) | 실제 파일 (Git 제외) | 담는 값 |
 | --- | --- | --- |
 | `core/.env.example` | `core/.env` | 브로커 키·계좌, 알림, APNs |
-| `deploy/local.env.example` | `deploy/local.env` | 서버 SSH 별칭, 공개본 폴더 |
+| `deploy/local.env.example` | `deploy/local.env` | 서버 SSH 별칭 |
 | `ios/Config/Local.xcconfig.example` | `ios/Config/Local.xcconfig` | Apple 개발 팀, 앱 번들 ID |
 
 ```sh
@@ -172,15 +173,16 @@ docker compose -f docker-compose.reports.yml -f docker-compose.planner.yml \
 
 ## 공개 전 확인
 
-저장소 루트에서 파일 내용 대신 추적 여부를 확인합니다.
+`git config core.hooksPath .githooks`를 설정하면 커밋할 때마다 `scripts/check_private.py --staged`가 실행됩니다.
+`private/`·실제 설정 파일·키·DB 파일, 키·웹훅·사설 IP 형식, 그리고 로컬 설정 파일에 들어 있는 실제 값
+(예시 값 제외)이 커밋 내용에 있으면 커밋을 막습니다. 값은 출력하지 않습니다.
 
 ```sh
-git ls-files -- core/.env secrets ios/Config/Local.xcconfig deploy/local.env
-git check-ignore core/.env secrets/codex-planner/auth.json secrets/apns.p8 ios/Config/Local.xcconfig deploy/local.env
-git diff --cached --stat
+python3 scripts/check_private.py --all    # 저장소 전체 검사
+git ls-files -- core/.env secrets ios/Config/Local.xcconfig deploy/local.env private
 ```
 
-첫 명령은 출력이 없어야 하고 두 번째는 제외 대상 경로를 표시해야 합니다.
-`.env.example`처럼 비어 있는 설정 예제만 공개합니다. Git ignore는 이미 추적된 파일에는 적용되지 않으므로
-새로운 인증 도구나 파일 경로를 추가할 때도 실제 추적 상태를 확인합니다.
-DB·스풀·로그·토큰 캐시·개인 운용 문서·암호화하지 않은 백업은 공개 저장소에 포함하지 않습니다.
+두 번째 명령은 출력이 없어야 합니다. Git ignore는 이미 추적된 파일에는 적용되지 않으므로,
+새 인증 도구나 파일 경로를 추가할 때는 `.gitignore`와 검사 스크립트의 금지 목록을 함께 갱신합니다.
+자동 검사는 알려진 형식과 내 로컬 값만 찾습니다. 문서에 직접 쓴 보유 종목·매매 내역 같은 내용은
+`private/`에 두는 것으로 막습니다.

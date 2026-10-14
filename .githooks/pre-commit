@@ -1,0 +1,4 @@
+#!/bin/sh
+# 커밋 직전에 개인정보·비밀 값을 검사한다. 활성화: git config core.hooksPath .githooks
+# 검사를 건너뛰려면(권장하지 않음): git commit --no-verify
+exec python3 "$(git rev-parse --show-toplevel)/scripts/check_private.py" --staged

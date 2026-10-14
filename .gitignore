@@ -1,3 +1,6 @@
+# Personal documents and notes (never committed)
+/private/
+
 # Credentials and machine-specific configuration
 deploy/local.env
 .env

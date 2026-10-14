@@ -143,6 +143,11 @@ git push server main  # 서버에서 빌드 → 테스트 → 기동 확인 → 
 타인의 자금을 운용하는 데 사용하면 투자일임업 등 관련 법규의 적용을 받을 수 있습니다.
 KIS·Toss Open API 사용은 각 증권사의 약관을 따릅니다.
 
+## 직접 고쳐 쓰기
+
+개발 환경, 개인 값 관리(`.example` → 로컬 파일, `private/` 폴더), 커밋 시 개인정보 검사, 테스트는
+[CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요. 코딩 에이전트용 규칙은 [AGENTS.md](AGENTS.md)에 있습니다.
+
 ## 라이선스와 보안
 
 [Apache License 2.0](LICENSE)으로 배포합니다. 보안 문제는 [보안 정책](SECURITY.md)에 따라 비공개로 알려 주세요.
