@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -19,6 +20,16 @@ class KISError(RuntimeError):
 
 class KISOutcomeUnknown(KISError):
     """주문 요청이 KIS에 도달했는지 알 수 없다. 재전송하지 말고 대사로 확인한다."""
+
+
+class _TokenRejected(Exception):
+    """KIS 게이트웨이가 접근 토큰을 거부했다. 요청은 처리되지 않았다."""
+
+
+# EGW00121: 유효하지 않은 token, EGW00123: 기간이 만료된 token
+TOKEN_ERROR_CODES = frozenset({"EGW00121", "EGW00123"})
+# KIS 토큰 응답의 만료 시각(access_token_token_expired)은 한국 시간 문자열이다.
+KIS_TIMEZONE = ZoneInfo("Asia/Seoul")
 
 
 class KISClient:
@@ -367,6 +378,28 @@ class KISClient:
         json_body: dict[str, str] | None = None,
         use_hashkey: bool = False,
     ) -> dict[str, Any]:
+        args = (method, path, tr_id, params, json_body, use_hashkey)
+        try:
+            return self._request_once(*args)
+        except _TokenRejected:
+            self._invalidate_token()
+        if method.upper() != "GET":
+            # 토큰 거부는 게이트웨이 인증 단계라 주문은 처리되지 않았다. 자동 재전송은 하지 않는다.
+            raise KISError("KIS가 만료된 접근 토큰을 거부해 요청이 처리되지 않았습니다. 토큰을 다시 발급했으니 다시 시도하세요.")
+        try:
+            return self._request_once(*args)
+        except _TokenRejected as exc:
+            raise KISError("KIS 접근 토큰을 다시 발급했지만 또 거부되었습니다.") from exc
+
+    def _request_once(
+        self,
+        method: str,
+        path: str,
+        tr_id: str,
+        params: dict[str, str] | None,
+        json_body: dict[str, str] | None,
+        use_hashkey: bool,
+    ) -> dict[str, Any]:
         headers = self._headers(tr_id)
         if use_hashkey and json_body is not None:
             headers["hashkey"] = self._hashkey(json_body)
@@ -387,6 +420,8 @@ class KISClient:
                 body = response.json()
                 break
             except requests.HTTPError as exc:
+                if _token_rejected(exc.response):
+                    raise _TokenRejected() from exc
                 status = exc.response.status_code if exc.response is not None else None
                 if status in {429, 500, 502, 503, 504} and attempt + 1 < max_attempts:
                     time.sleep(0.25 * (attempt + 1))
@@ -407,6 +442,8 @@ class KISClient:
                     raise KISOutcomeUnknown("KIS 주문 응답을 해석할 수 없어 처리 여부를 알 수 없습니다.") from exc
                 raise KISError("KIS API 응답이 JSON 형식이 아닙니다.") from exc
 
+        if str(body.get("msg_cd", "")) in TOKEN_ERROR_CODES:
+            raise _TokenRejected()
         if str(body.get("rt_cd", "0")) != "0":
             raise KISError(
                 f"{body.get('msg_cd', 'UNKNOWN')}: {body.get('msg1', 'API 오류')}"
@@ -493,19 +530,31 @@ class KISClient:
         return None
 
     def _write_cached_token(self, token: str, expires_at: float) -> None:
-        self.token_dir.mkdir(parents=True, exist_ok=True)
-        self._token_path.write_text(
-            json.dumps({"access_token": token, "expires_at": expires_at}),
-            encoding="utf-8",
-        )
-        os.chmod(self._token_path, 0o600)
+        self.token_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # 처음부터 0600으로 만들고 원자적으로 교체한다(다른 프로세스가 반쯤 쓴 파일을 읽지 않게).
+        temporary = self.token_dir / f".{self._token_path.name}.{os.getpid()}.tmp"
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump({"access_token": token, "expires_at": expires_at}, stream)
+        os.replace(temporary, self._token_path)
+
+    def _invalidate_token(self) -> None:
+        self._access_token = None
+        try:
+            self._token_path.unlink()
+        except FileNotFoundError:
+            pass
 
     @staticmethod
     def _expiry_timestamp(body: dict[str, Any]) -> float:
         raw_expiry = body.get("access_token_token_expired")
         if raw_expiry:
             try:
-                return datetime.strptime(raw_expiry, "%Y-%m-%d %H:%M:%S").timestamp()
+                return (
+                    datetime.strptime(raw_expiry, "%Y-%m-%d %H:%M:%S")
+                    .replace(tzinfo=KIS_TIMEZONE)
+                    .timestamp()
+                )
             except ValueError:
                 pass
         return time.time() + int(body.get("expires_in", 86_400))
@@ -524,6 +573,16 @@ class KISClient:
     def _validate_overseas_exchange(exchange: str) -> None:
         if not exchange or not exchange.isalpha():
             raise ValueError("해외 거래소 코드를 입력하세요. 예: NAS 또는 NASD")
+
+
+def _token_rejected(response: requests.Response | None) -> bool:
+    if response is None:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    return isinstance(body, dict) and str(body.get("msg_cd", "")) in TOKEN_ERROR_CODES
 
 
 def _as_list(value: Any) -> list[dict[str, Any]]:

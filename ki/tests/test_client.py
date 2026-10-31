@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +18,7 @@ class FakeResponse:
         if self.status_code >= 400:
             response = requests.Response()
             response.status_code = self.status_code
+            response._content = json.dumps(self.body).encode("utf-8")
             raise requests.HTTPError(
                 f"{self.status_code} Server Error",
                 response=response,
