@@ -11,4 +11,6 @@ python -m unittest discover -s ki/tests -q
 실제 조회에는 본인의 KIS API 인증과 계좌 설정이 필요합니다.
 웹소켓 수집은 동일 인증키의 호가·체결 구독을 하나의 연결로 공유합니다.
 결과 불명 주문은 `SUBMIT_UNKNOWN`으로 보존하고 재제출보다 조회·대사를 우선합니다.
+실주문은 원장에 기록된 후보를 `submit-order --execute`로 하나씩 제출하는 경로만 있습니다.
+시세 감시(`market-watch`, `orderbook-watch`, `dip-watch`)는 후보만 만들고 제출하지 않습니다.
 [전체 구조](../docs/architecture.md) · [설정](../docs/deployment.md)

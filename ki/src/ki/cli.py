@@ -17,7 +17,6 @@ from ki.dip_watch import DipWatcher, DipWatchOptions
 from ki.gateway import KISGateway
 from ki.market_watch import (
     MarketWatcher,
-    MarketWatchOptions,
     WatchlistConfig,
     validate_watchlist_config,
 )
@@ -25,7 +24,6 @@ from ki.orderbook_watch import OrderBookWatcher, OrderBookWatchOptions
 from ki.reconcile import OrderReconciliationService
 from ki.storage import SnapshotStore
 from ki.trade_watch import TradeWatcher, TradeWatchOptions
-from ki.trader import AutoTrader, ThresholdStrategy
 from ki.websocket_client import KISWebSocketClient
 from ki.worker import OperationsWorker, WorkerOptions
 
@@ -33,7 +31,7 @@ from ki.worker import OperationsWorker, WorkerOptions
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ki",
-        description="한국투자증권 Open API 주식 자동매매 CLI",
+        description="한국투자증권 Open API 조회·주문 원장 CLI",
     )
     parser.add_argument("--verbose", action="store_true", help="상세 로그 출력")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -144,12 +142,6 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         help="반복 실행 횟수. --interval 사용 시 생략하면 계속 실행",
     )
-    market_watch.add_argument(
-        "--auto-submit",
-        action="store_true",
-        help="시그널 주문 후보를 즉시 실전 제출. 반드시 --execute 필요",
-    )
-    market_watch.add_argument("--execute", action="store_true")
 
     market_signals = subparsers.add_parser(
         "market-signals",
@@ -386,23 +378,6 @@ def _parser() -> argparse.ArgumentParser:
         help="cycle 실패 시 계속 돌지 않고 즉시 종료",
     )
 
-    order = subparsers.add_parser("order", help="현금 주문")
-    order.add_argument("side", choices=["buy", "sell"])
-    order.add_argument("symbol")
-    order.add_argument("quantity", type=int)
-    order.add_argument("--price", type=int, default=0, help="지정가")
-    order.add_argument("--market", action="store_true", help="시장가 주문")
-    order.add_argument("--exchange", default="KRX")
-    order.add_argument("--execute", action="store_true", help="주문을 실제 API로 전송")
-
-    auto = subparsers.add_parser("auto", help="목표가 기반 자동매매")
-    auto.add_argument("symbol")
-    auto.add_argument("--quantity", type=int, default=1)
-    auto.add_argument("--buy-below", type=int)
-    auto.add_argument("--sell-above", type=int)
-    auto.add_argument("--interval", type=float, default=30)
-    auto.add_argument("--max-orders", type=int, default=1)
-    auto.add_argument("--execute", action="store_true", help="주문을 실제 API로 전송")
     return parser
 
 
@@ -491,7 +466,7 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(
         level=(
             logging.INFO
-            if args.verbose or args.command in {"auto", "worker"}
+            if args.verbose or args.command == "worker"
             else logging.WARNING
         ),
         format="%(asctime)s %(levelname)s %(message)s",
@@ -582,17 +557,11 @@ def main(argv: list[str] | None = None) -> None:
             )
             return
         if args.command == "market-watch":
-            if args.auto_submit and not args.execute:
-                raise PermissionError("--auto-submit에는 --execute가 필요합니다.")
             store = SnapshotStore(args.db or settings.database_path)
             watcher = MarketWatcher(
                 client,
                 settings,
                 store,
-                options=MarketWatchOptions(
-                    auto_submit=args.auto_submit,
-                    execute=args.execute,
-                ),
             )
             _run_market_watch(
                 watcher,
@@ -804,59 +773,6 @@ def main(argv: list[str] | None = None) -> None:
             )
             _print(worker.run())
             return
-        if args.command == "order":
-            order_type = "market" if args.market else "limit"
-            if not args.execute:
-                _print(
-                    {
-                        "mode": "dry-run",
-                        "side": args.side,
-                        "symbol": args.symbol,
-                        "quantity": args.quantity,
-                        "price": args.price,
-                        "order_type": order_type,
-                        "message": "--execute가 없어 주문을 전송하지 않았습니다.",
-                    }
-                )
-                return
-
-            settings.require_order_permission(execute=True)
-            estimated_price = (
-                client.current_price(args.symbol) if args.market else args.price
-            )
-            estimated_amount = estimated_price * args.quantity
-            if estimated_amount > settings.max_order_amount:
-                raise ValueError(
-                    f"추정 주문금액 {estimated_amount:,}원이 주문 한도 "
-                    f"{settings.max_order_amount:,}원을 초과합니다."
-                )
-            _print(
-                client.order(
-                    args.side,
-                    args.symbol,
-                    args.quantity,
-                    args.price,
-                    order_type,
-                    args.exchange,
-                )
-            )
-            return
-        if args.command == "auto":
-            strategy = ThresholdStrategy(
-                symbol=args.symbol,
-                quantity=args.quantity,
-                buy_below=args.buy_below,
-                sell_above=args.sell_above,
-            )
-            trader = AutoTrader(client, settings)
-            _print(
-                trader.run(
-                    strategy,
-                    interval_seconds=args.interval,
-                    max_orders=args.max_orders,
-                    execute=args.execute,
-                )
-            )
     except (KISError, ValueError, PermissionError, KeyboardInterrupt) as exc:
         if isinstance(exc, KeyboardInterrupt):
             print("\n작업을 중지했습니다.", file=sys.stderr)

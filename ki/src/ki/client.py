@@ -358,60 +358,6 @@ class KISClient:
         )
         return {"positions": body.get("output1", []), "summary": body.get("output2", [])}
 
-    def order(
-        self,
-        side: str,
-        symbol: str,
-        quantity: int,
-        price: int = 0,
-        order_type: str = "limit",
-        exchange: str = "KRX",
-    ) -> dict[str, Any]:
-        self.settings.require_account()
-        self._validate_symbol(symbol)
-        if side not in {"buy", "sell"}:
-            raise ValueError("side는 buy 또는 sell이어야 합니다.")
-        if quantity <= 0:
-            raise ValueError("주문 수량은 1주 이상이어야 합니다.")
-        if order_type not in {"limit", "market"}:
-            raise ValueError("order_type은 limit 또는 market이어야 합니다.")
-        if order_type == "limit" and price <= 0:
-            raise ValueError("지정가 주문에는 0보다 큰 가격이 필요합니다.")
-
-        tr_ids = {
-            ("real", "buy"): "TTTC0012U",
-            ("real", "sell"): "TTTC0011U",
-            ("demo", "buy"): "VTTC0012U",
-            ("demo", "sell"): "VTTC0011U",
-        }
-        payload = {
-            "CANO": self.settings.account_no,
-            "ACNT_PRDT_CD": self.settings.account_product_code,
-            "PDNO": symbol,
-            "ORD_DVSN": "00" if order_type == "limit" else "01",
-            "ORD_QTY": str(quantity),
-            "ORD_UNPR": str(price if order_type == "limit" else 0),
-            "EXCG_ID_DVSN_CD": exchange,
-            "SLL_TYPE": "01" if side == "sell" else "",
-            "CNDT_PRIC": "",
-        }
-        return self._request(
-            "POST",
-            "/uapi/domestic-stock/v1/trading/order-cash",
-            tr_id=tr_ids[(self.settings.environment, side)],
-            json_body=payload,
-            use_hashkey=True,
-        )["output"]
-
-    def current_price(self, symbol: str) -> int:
-        return int(self.quote(symbol)["stck_prpr"])
-
-    def holding_quantity(self, symbol: str) -> int:
-        for position in self.balance()["positions"]:
-            if position.get("pdno") == symbol:
-                return int(position.get("hldg_qty", "0"))
-        return 0
-
     def _request(
         self,
         method: str,

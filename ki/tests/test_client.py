@@ -117,42 +117,6 @@ class KISClientTest(unittest.TestCase):
         self.assertEqual(call[2]["params"]["NREC"], "50")
         self.assertEqual(result["candles"][0]["last"], "300")
 
-    def test_demo_buy_uses_current_tr_id_and_hashkey(self) -> None:
-        settings = Settings(
-            environment="demo",
-            app_key="key",
-            app_secret="secret",
-            account_no="12345678",
-        )
-        session = FakeSession()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            client = KISClient(settings, session=session, token_dir=Path(temp_dir))
-            result = client.order("buy", "005930", 1, 70_000)
-
-        self.assertEqual(result["ODNO"], "123")
-        order_call = session.calls[-1]
-        self.assertEqual(order_call[2]["headers"]["tr_id"], "VTTC0012U")
-        self.assertEqual(order_call[2]["headers"]["hashkey"], "hash")
-        self.assertEqual(order_call[2]["json"]["ORD_DVSN"], "00")
-
-    def test_market_order_sends_zero_price(self) -> None:
-        settings = Settings(
-            environment="real",
-            app_key="key",
-            app_secret="secret",
-            account_no="12345678",
-        )
-        session = FakeSession()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            client = KISClient(settings, session=session, token_dir=Path(temp_dir))
-            client.order("sell", "005930", 2, order_type="market")
-
-        order_call = session.calls[-1]
-        self.assertEqual(order_call[2]["headers"]["tr_id"], "TTTC0011U")
-        self.assertEqual(order_call[2]["json"]["ORD_DVSN"], "01")
-        self.assertEqual(order_call[2]["json"]["ORD_UNPR"], "0")
-        self.assertEqual(order_call[2]["json"]["SLL_TYPE"], "01")
-
     def test_real_overseas_balance_uses_account_api(self) -> None:
         settings = Settings(
             environment="real",

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ki"
 version = "0.1.0"
-description = "한국투자증권 Open API 기반 주식 자동매매 CLI"
+description = "한국투자증권 Open API 조회·주문 원장 CLI"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

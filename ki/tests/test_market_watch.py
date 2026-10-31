@@ -4,7 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from ki.config import REAL_TRADING_ACK, Settings
-from ki.market_watch import MarketWatcher, MarketWatchOptions, WatchlistConfig
+from ki.market_watch import MarketWatcher, WatchlistConfig
 from ki.storage import SnapshotStore
 
 
@@ -93,7 +93,8 @@ class MarketWatchTest(unittest.TestCase):
         self.assertEqual(orders[0]["side"], "buy")
         self.assertEqual(orders[0]["status"], "RISK_APPROVED")
 
-    def test_auto_submit_execute_sends_approved_candidate_to_gateway(self) -> None:
+    def test_live_settings_still_only_create_candidates(self) -> None:
+        """실주문 설정이 켜져 있어도 market-watch는 후보만 만들고 제출하지 않는다."""
         with tempfile.TemporaryDirectory() as temp_dir:
             store = SnapshotStore(Path(temp_dir) / "market-watch.db")
             store.upsert_watchlist_item(
@@ -113,12 +114,7 @@ class MarketWatchTest(unittest.TestCase):
                 allow_orders=True,
                 real_trading_ack=REAL_TRADING_ACK,
             )
-            watcher = MarketWatcher(
-                client,
-                live_settings,
-                store,
-                options=MarketWatchOptions(auto_submit=True, execute=True),
-            )
+            watcher = MarketWatcher(client, live_settings, store)
 
             watcher.scan_once()
             result = watcher.scan_once()
@@ -126,10 +122,10 @@ class MarketWatchTest(unittest.TestCase):
             signal = store.list_market_signals()[0]
 
         self.assertEqual(result["results"][0]["signals"][0]["order_id"], order["id"])
-        self.assertEqual(order["status"], "ACCEPTED")
-        self.assertEqual(order["kis_order_id"], "KIS777")
-        self.assertEqual(client.orders[0]["symbol"], "GOOGL")
-        self.assertEqual(signal["payload"]["submit_result"]["mode"], "live")
+        self.assertEqual(order["status"], "RISK_APPROVED")
+        self.assertIsNone(order["kis_order_id"])
+        self.assertEqual(client.orders, [])
+        self.assertNotIn("submit_result", signal["payload"])
 
 
 class FakeMarketClient:

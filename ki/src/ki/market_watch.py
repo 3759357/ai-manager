@@ -27,12 +27,6 @@ class WatchlistConfig:
     limit_offset_pct: Decimal = Decimal("0.02")
 
 
-@dataclass(frozen=True)
-class MarketWatchOptions:
-    auto_submit: bool = False
-    execute: bool = False
-
-
 class MarketWatcher:
     def __init__(
         self,
@@ -40,14 +34,11 @@ class MarketWatcher:
         settings: Settings,
         store: SnapshotStore,
         gateway: KISGateway | None = None,
-        *,
-        options: MarketWatchOptions | None = None,
     ) -> None:
         self.client = client
         self.settings = settings
         self.store = store
         self.gateway = gateway or KISGateway(settings, store)
-        self.options = options or MarketWatchOptions()
 
     def scan_once(self) -> dict[str, Any]:
         results = []
@@ -131,23 +122,15 @@ class MarketWatcher:
             "previous_price": previous["price"] if previous else None,
             "price_change_pct": format(price_change_pct, "f"),
             "action": action,
-            "auto_submit": self.options.auto_submit,
-            "execute": self.options.execute,
         }
         order_id = None
 
         if action in {"buy", "sell"}:
             order_result = self._create_order_candidate(config, action, price)
             payload["order_result"] = order_result
+            # 후보만 만든다. 제출은 사람이 `ki submit-order`로 따로 한다.
             if order_result.get("order"):
                 order_id = int(order_result["order"]["id"])
-                if self.options.auto_submit:
-                    submit_result = self.gateway.submit_order(
-                        order_id=order_id,
-                        client=self.client,
-                        execute=self.options.execute,
-                    )
-                    payload["submit_result"] = submit_result
 
         signal_id = self.store.save_market_signal(
             symbol=config.symbol,
