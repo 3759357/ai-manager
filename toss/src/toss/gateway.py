@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from toss.client import TossClient, TossError, TossOutcomeUnknown
 from toss.config import Settings
+from toss.killswitch import assert_orders_allowed, kill_switch_reason
 from toss.storage import OrderStore
 
 
@@ -46,6 +47,8 @@ class TossGateway:
 
         estimated_amount = price_value * quantity
         reasons: list[str] = []
+        if kill_switch_reason([self.settings.kill_switch_path]) is not None:
+            reasons.append("Kill Switch가 활성화되어 신규 주문 후보를 차단했습니다.")
         preflight: dict[str, Any] = {
             "estimatedAmount": format(estimated_amount, "f"),
             "currency": currency,
@@ -108,6 +111,8 @@ class TossGateway:
 
     def submit_order(self, order_id: int, *, execute: bool) -> dict[str, Any]:
         self.settings.require_order_permission(execute=execute)
+        # 원장 상태를 바꾸기 전에 막는다. 해제 후에는 같은 후보를 다시 제출할 수 있다.
+        assert_orders_allowed([self.settings.kill_switch_path])
         order = self._approved_order(order_id)
         latest = self._submit_preflight(order)
         if latest["decision"] == "BLOCK":
@@ -221,6 +226,8 @@ class TossGateway:
         execute: bool,
     ) -> dict[str, Any]:
         self.settings.require_order_permission(execute=execute)
+        # 정정은 체결 가능성을 바꾸므로 Kill Switch 대상이다. 취소는 막지 않는다.
+        assert_orders_allowed([self.settings.kill_switch_path])
         order = self.store.get_order(order_id)
         if order is None:
             raise ValueError(f"주문 원장을 찾을 수 없습니다: {order_id}")

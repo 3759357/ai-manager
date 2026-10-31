@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from toss.killswitch import resolve_kill_switch_path
+
 
 BASE_URL = "https://openapi.tossinvest.com"
 REAL_TRADING_ACK = "I_UNDERSTAND_TOSS_REAL_TRADING"
@@ -64,6 +66,8 @@ class Settings:
     candidate_ttl_seconds: int = 1800
     database_path: Path = Path("data/toss.db")
     base_url: str = BASE_URL
+    # core와 같은 중앙 Kill Switch 파일.
+    kill_switch_path: Path | None = None
 
     @classmethod
     def from_env(cls, dotenv_path: Path = Path(".env")) -> "Settings":
@@ -96,6 +100,10 @@ class Settings:
             timeout_seconds=float(os.getenv("TOSS_TIMEOUT_SECONDS", "10")),
             candidate_ttl_seconds=int(os.getenv("TOSS_CANDIDATE_TTL_SECONDS", "1800")),
             database_path=database_path,
+            kill_switch_path=resolve_kill_switch_path(
+                _env("CORE_KILL_SWITCH_PATH"),
+                base=dotenv_path.resolve().parent,
+            ),
         )
         settings.validate()
         return settings

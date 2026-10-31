@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from ki.killswitch import resolve_kill_switch_path
+
 
 DEMO_BASE_URL = "https://openapivts.koreainvestment.com:29443"
 REAL_BASE_URL = "https://openapi.koreainvestment.com:9443"
@@ -67,6 +69,13 @@ class Settings:
     max_overseas_order_amount_usd: Decimal = Decimal("500")
     timeout_seconds: float = 10.0
     database_path: Path = Path("data/ki.db")
+    # core와 같은 중앙 Kill Switch 파일. None이면 아래 legacy 파일만 확인한다.
+    kill_switch_path: Path | None = None
+
+    @property
+    def kill_switch_paths(self) -> tuple[Path | None, ...]:
+        # 예전 ki 전용 스위치(ki DB 옆 KILL_SWITCH)도 계속 차단 신호로 인정한다.
+        return (self.kill_switch_path, self.database_path.parent / "KILL_SWITCH")
 
     @classmethod
     def from_env(cls, dotenv_path: Path = Path(".env")) -> "Settings":
@@ -95,6 +104,10 @@ class Settings:
             ),
             timeout_seconds=float(os.getenv("KIS_TIMEOUT_SECONDS", "10")),
             database_path=database_path,
+            kill_switch_path=resolve_kill_switch_path(
+                _env("CORE_KILL_SWITCH_PATH"),
+                base=dotenv_path.resolve().parent,
+            ),
         )
         settings.validate()
         return settings

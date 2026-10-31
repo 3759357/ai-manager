@@ -60,6 +60,7 @@ class KISBrokerAdapter:
             ),
             timeout_seconds=core.kis_timeout_seconds,
             database_path=core.kis_database_path,
+            kill_switch_path=core.kill_switch_path,
         )
         settings.validate()
         return cls(settings)
@@ -74,6 +75,7 @@ class KISBrokerAdapter:
             app_secret="local-read-only",
             account_no="",
             database_path=database_path,
+            kill_switch_path=core.kill_switch_path,
         )
         return cls(settings)
 
@@ -194,6 +196,7 @@ class TossBrokerAdapter:
             max_slippage_pct=core.toss_max_slippage_pct,
             timeout_seconds=core.toss_timeout_seconds,
             database_path=core.toss_database_path,
+            kill_switch_path=core.kill_switch_path,
         )
         settings.validate()
         return cls(settings)
@@ -206,6 +209,7 @@ class TossBrokerAdapter:
             client_id="local-read-only",
             client_secret="local-read-only",
             database_path=database_path,
+            kill_switch_path=core.kill_switch_path,
         )
         return cls(settings)
 

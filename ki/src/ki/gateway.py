@@ -20,6 +20,7 @@ from ki.order_state import (
     assert_order_transition,
     assert_order_voidable,
 )
+from ki.killswitch import assert_orders_allowed
 from ki.risk import RiskEngine
 from ki.storage import SnapshotStore
 
@@ -142,6 +143,8 @@ class KISGateway:
         execute: bool,
     ) -> dict[str, Any]:
         self.settings.require_order_permission(execute=execute)
+        # 원장 상태를 바꾸기 전에 막는다. 해제 후에는 같은 후보를 다시 제출할 수 있다.
+        assert_orders_allowed(self.risk_engine.kill_switch_paths)
 
         order = self.store.get_broker_order(order_id)
         if order is None:

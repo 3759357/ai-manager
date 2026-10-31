@@ -25,6 +25,7 @@ ai-manager report latest
 
 계좌 보고 요청은 별도 worker가 처리합니다. `ai-manager worker` 또는 reports Compose를 실행합니다.
 `ai-manager`에는 가상계좌와 자동 매매 실행기가 없습니다. 투자 지시는 접수·조회·취소·처리 결과 기록을 지원합니다.
+`core kill-switch on --reason "..."`은 core·KIS·토스의 신규 후보와 제출·정정을 모두 멈춥니다. 취소는 계속 허용합니다.
 worker는 보고 생성, 투자논리 AI 초안·판단 응답 적재, 선택적 알림을 처리합니다.
 상세 하위 명령은 `core --help`, `ai-manager --help`에서 확인합니다.
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from ki.config import Settings
+from ki.killswitch import kill_switch_reason
 from ki.models import OrderIntent, RiskDecision
 
 
@@ -14,9 +15,12 @@ class RiskEngine:
         kill_switch_path: Path | None = None,
     ) -> None:
         self.settings = settings
-        self.kill_switch_path = kill_switch_path or (
-            settings.database_path.parent / "KILL_SWITCH"
+        self.kill_switch_paths = (
+            (kill_switch_path,) if kill_switch_path else settings.kill_switch_paths
         )
+
+    def kill_switch_reason(self) -> str | None:
+        return kill_switch_reason(self.kill_switch_paths)
 
     def evaluate(
         self,
@@ -29,7 +33,7 @@ class RiskEngine:
         reasons: list[str] = []
         checks: dict[str, Any] = {
             "execute": execute,
-            "kill_switch_path": str(self.kill_switch_path),
+            "kill_switch_paths": [str(path) for path in self.kill_switch_paths if path],
             "estimated_amount": format(intent.estimated_amount, "f"),
             "max_overseas_order_amount_usd": format(
                 self.settings.max_overseas_order_amount_usd,
@@ -37,7 +41,7 @@ class RiskEngine:
             ),
         }
 
-        if self.kill_switch_path.exists():
+        if self.kill_switch_reason() is not None:
             reasons.append("Kill Switch가 활성화되어 신규 주문 후보를 차단했습니다.")
 
         if intent.market != "overseas":

@@ -68,14 +68,16 @@ cp ios/Config/Local.xcconfig.example ios/Config/Local.xcconfig
 
 필요한 브로커만 설정합니다. 매니저 보고 요청은 `--broker kis`, `--broker toss` 또는 `--broker both`로 선택합니다.
 reports Compose는 주문 허용 두 값을 `false`로 고정하며, 매니저에는 자동 매매 실행기가 없습니다.
-이 설정은 개별 브로커 CLI를 직접 실행하는 다른 경로 전체를 통제하는 중앙 스위치는 아닙니다.
+이 설정은 해당 컨테이너의 허용값입니다. 실행 중 모든 주문 경로를 한 번에 멈추는 중앙 스위치는
+`core kill-switch on`이며, `core`·`ki submit-order`·`toss submit-order`/`modify-order`가 같은 파일을 확인합니다.
+취소는 위험을 줄이는 요청이라 막지 않습니다.
 
 ### 데이터와 정책
 
 | 변수 | 용도 |
 | --- | --- |
 | `AI_MANAGER_DATA_DIR` | 매니저 요청·보고·투자논리·판단 원장; reports 컨테이너는 `/app/runtime/manager`로 고정 |
-| `CORE_DATABASE_PATH`, `CORE_KILL_SWITCH_PATH` | Core 원장과 킬 스위치 파일 |
+| `CORE_DATABASE_PATH`, `CORE_KILL_SWITCH_PATH` | Core 원장과 중앙 Kill Switch 파일(기본 `core/data/kill-switch.json`, KIS·토스 패키지도 같은 값을 읽음) |
 | `KI_DB_PATH`, `TOSS_DB_PATH` | 브로커별 DB 경로 |
 | `CORE_MIN_CASH_PCT`, `CORE_MAX_SINGLE_POSITION_PCT` | Core 정책의 최소 현금·종목 비중 |
 | `CORE_MAX_LEVERAGED_EXPOSURE_PCT`, `CORE_LEVERAGED_SYMBOLS` | 레버리지 노출 정책과 해당 종목 목록 |
