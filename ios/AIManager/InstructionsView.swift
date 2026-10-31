@@ -21,7 +21,18 @@ struct InvestmentInstruction: Codable, Identifiable {
 }
 struct InstructionEvent: Codable { let state: String; let at: String; let result: String? }
 struct InstructionList: Decodable { let schemaVersion: Int; let instructions: [InvestmentInstruction] }
-struct PendingInstruction: Codable { let id: String; let message: String }
+struct PendingInstruction: Codable, Equatable {
+    let id: String
+    let message: String
+
+    /// 보낼 지시. 같은 문장을 다시 보내면 같은 ID를 써서 서버가 중복 접수하지 않고,
+    /// 문장을 고쳤으면 새 ID를 만든다(고친 내용이 옛 문장으로 바뀌어 전송되지 않게).
+    static func next(stored: PendingInstruction?, draft: String,
+                     makeID: () -> String = { UUID().uuidString.lowercased() }) -> PendingInstruction {
+        if let stored, stored.message == draft { return stored }
+        return PendingInstruction(id: makeID(), message: draft)
+    }
+}
 
 struct InstructionsView: View {
     @EnvironmentObject private var model: AppModel

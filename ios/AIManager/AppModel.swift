@@ -115,8 +115,16 @@ final class AppModel: ObservableObject {
         defer { instructionBusy = false }
         let key = instructionKey
         do {
-            let pending = UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(PendingInstruction.self, from: $0) }
-                ?? PendingInstruction(id: UUID().uuidString.lowercased(), message: text)
+            let stored = UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(PendingInstruction.self, from: $0) }
+            if let stored, stored.message != text {
+                // 전송 결과를 모르는 이전 지시를 고쳐 쓴 경우: 이전 지시가 서버에 닿았는지 먼저 확인한다.
+                // 확인하지 못하면 아무것도 보내지 않는다(이전 지시가 조용히 사라지거나 둘 다 나가는 것을 막음).
+                let list: InstructionList = try await fetch(["instructions", "--json", "--limit", "100"])
+                guard list.schemaVersion == 1 else { throw AIManagerError.response }
+                if let sent = list.instructions.first(where: { $0.id == stored.id }) { updateInstruction(sent) }
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+            let pending = PendingInstruction.next(stored: stored, draft: text)
             UserDefaults.standard.set(try JSONEncoder().encode(pending), forKey: key)
             instructionPending = true
             let item: InvestmentInstruction = try await fetch(["instruct", pending.message, "--request-id", pending.id])

@@ -10,6 +10,14 @@ final class AIManagerTests: XCTestCase {
         XCTAssertNil(list.instructions.first?.result)
         XCTAssertEqual(list.instructions.first?.events.count, 1)
     }
+    func testRetryKeepsTheIDButAnEditedInstructionGetsANewOne() {
+        let stored = PendingInstruction(id: "phone-1", message: "비중 검토")
+        XCTAssertEqual(PendingInstruction.next(stored: stored, draft: "비중 검토"), stored)
+        let edited = PendingInstruction.next(stored: stored, draft: "AMD 비중 10%로", makeID: { "phone-2" })
+        XCTAssertEqual(edited, PendingInstruction(id: "phone-2", message: "AMD 비중 10%로"))
+        XCTAssertEqual(PendingInstruction.next(stored: nil, draft: "새 지시", makeID: { "phone-3" }).id, "phone-3")
+    }
+
     func testCommandsQuoteEveryArgument() {
         var profile = ServerProfile()
         profile.directory = "/srv/ai-manager's project; touch /tmp/should-not-run"
