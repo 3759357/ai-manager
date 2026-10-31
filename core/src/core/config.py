@@ -42,6 +42,29 @@ def _decimal(value: str | None, default: str) -> Decimal:
         raise ValueError("CORE 설정값은 숫자여야 합니다.") from exc
 
 
+def _optional_decimal(value: str) -> Decimal | None:
+    """비어 있으면 None(정책 파일 값을 쓴다)."""
+    return _decimal(value, "0") if value.strip() else None
+
+
+# 배수를 적지 않은 레버리지 종목은 3배로 가정한다(모르면 보수적으로).
+DEFAULT_LEVERAGE_MULTIPLIER = Decimal("3")
+
+
+def _leveraged(value: str) -> tuple[tuple[str, Decimal], ...]:
+    """'SOXL:3,TQQQ:3,MUU' → ((SOXL, 3), (TQQQ, 3), (MUU, 3))."""
+    out: list[tuple[str, Decimal]] = []
+    for item in value.split(","):
+        symbol, _, multiplier = item.strip().partition(":")
+        if not symbol.strip():
+            continue
+        factor = _decimal(multiplier, "0") if multiplier.strip() else DEFAULT_LEVERAGE_MULTIPLIER
+        if factor <= 1:
+            raise ValueError("CORE_LEVERAGED_SYMBOLS의 배수는 1보다 커야 합니다. 예: SOXL:3")
+        out.append((symbol.strip().upper(), factor))
+    return tuple(out)
+
+
 def _bool(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
 
@@ -55,15 +78,17 @@ def _path(value: str | None, default: str, *, base: Path) -> Path:
 class Settings:
     default_broker: str = "toss"
     max_quote_divergence_pct: Decimal = Decimal("0.20")
-    min_cash_pct: Decimal = Decimal("35")
-    max_leveraged_exposure_pct: Decimal = Decimal("35")
-    max_single_position_pct: Decimal = Decimal("25")
-    max_daily_new_buy_usd: Decimal = Decimal("1500")
+    # 리스크 한도는 정책 파일(policy/v1.toml)에서 온다. 아래 값은 설정했을 때만
+    # 정책보다 엄격한 쪽으로 반영한다(None = 정책 그대로).
+    min_cash_pct: Decimal | None = None
+    max_leveraged_exposure_pct: Decimal | None = None
+    max_single_position_pct: Decimal | None = None
+    max_daily_new_buy_usd: Decimal | None = None
     panic_buy_block_minutes: int = 30
     core_database_path: Path = Path("data/core.db")
     kill_switch_path: Path = Path("data/kill-switch.json")
     notify_channels: tuple[str, ...] = ("console",)
-    leveraged_symbols: tuple[str, ...] = ()
+    leveraged: tuple[tuple[str, Decimal], ...] = ()
     strategy_spool_path: Path = Path("data/spool")
     strategy_role: str = "reviewer"
     strategy_cli: str = "codex"
@@ -120,30 +145,26 @@ class Settings:
                 ),
                 "0.20",
             ),
-            min_cash_pct=_decimal(
+            min_cash_pct=_optional_decimal(
                 _env("CORE_MIN_CASH_PCT", "TRADEPILOT_MIN_CASH_PCT"),
-                "35",
             ),
-            max_leveraged_exposure_pct=_decimal(
+            max_leveraged_exposure_pct=_optional_decimal(
                 _env(
                     "CORE_MAX_LEVERAGED_EXPOSURE_PCT",
                     "TRADEPILOT_MAX_LEVERAGED_EXPOSURE_PCT",
                 ),
-                "35",
             ),
-            max_single_position_pct=_decimal(
+            max_single_position_pct=_optional_decimal(
                 _env(
                     "CORE_MAX_SINGLE_POSITION_PCT",
                     "TRADEPILOT_MAX_SINGLE_POSITION_PCT",
                 ),
-                "25",
             ),
-            max_daily_new_buy_usd=_decimal(
+            max_daily_new_buy_usd=_optional_decimal(
                 _env(
                     "CORE_MAX_DAILY_NEW_BUY_USD",
                     "TRADEPILOT_MAX_DAILY_NEW_BUY_USD",
                 ),
-                "1500",
             ),
             panic_buy_block_minutes=int(
                 _env(
@@ -170,11 +191,7 @@ class Settings:
                 ).split(",")
                 if channel.strip()
             ),
-            leveraged_symbols=tuple(
-                symbol.strip().upper()
-                for symbol in _env("CORE_LEVERAGED_SYMBOLS").split(",")
-                if symbol.strip()
-            ),
+            leveraged=_leveraged(_env("CORE_LEVERAGED_SYMBOLS")),
             strategy_spool_path=_path(
                 _env("CORE_STRATEGY_SPOOL_PATH"),
                 "data/spool",
@@ -288,6 +305,14 @@ class Settings:
         settings.validate()
         return settings
 
+    @property
+    def leveraged_symbols(self) -> tuple[str, ...]:
+        return tuple(symbol for symbol, _ in self.leveraged)
+
+    @property
+    def leverage_multipliers(self) -> dict[str, Decimal]:
+        return dict(self.leveraged)
+
     def validate(self) -> None:
         if self.default_broker not in {"kis", "toss"}:
             raise ValueError("CORE_DEFAULT_BROKER는 kis 또는 toss여야 합니다.")
@@ -295,20 +320,14 @@ class Settings:
             raise ValueError(
                 "CORE_MAX_QUOTE_DIVERGENCE_PCT는 0 이상이어야 합니다."
             )
-        if self.min_cash_pct < 0:
-            raise ValueError("CORE_MIN_CASH_PCT는 0 이상이어야 합니다.")
-        if self.max_leveraged_exposure_pct < 0:
-            raise ValueError(
-                "CORE_MAX_LEVERAGED_EXPOSURE_PCT는 0 이상이어야 합니다."
-            )
-        if self.max_single_position_pct < 0:
-            raise ValueError(
-                "CORE_MAX_SINGLE_POSITION_PCT는 0 이상이어야 합니다."
-            )
-        if self.max_daily_new_buy_usd < 0:
-            raise ValueError(
-                "CORE_MAX_DAILY_NEW_BUY_USD는 0 이상이어야 합니다."
-            )
+        for name, value in (
+            ("CORE_MIN_CASH_PCT", self.min_cash_pct),
+            ("CORE_MAX_LEVERAGED_EXPOSURE_PCT", self.max_leveraged_exposure_pct),
+            ("CORE_MAX_SINGLE_POSITION_PCT", self.max_single_position_pct),
+            ("CORE_MAX_DAILY_NEW_BUY_USD", self.max_daily_new_buy_usd),
+        ):
+            if value is not None and value < 0:
+                raise ValueError(f"{name}는 0 이상이어야 합니다.")
         if self.panic_buy_block_minutes < 0:
             raise ValueError(
                 "CORE_PANIC_BUY_BLOCK_MINUTES는 0 이상이어야 합니다."

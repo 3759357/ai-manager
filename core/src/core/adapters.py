@@ -135,6 +135,12 @@ class KISBrokerAdapter:
     def list_orders(self, limit: int = 20) -> list[dict[str, Any]]:
         return self.store.list_broker_orders(limit=limit)
 
+    def order_summary(self, order_id: int) -> dict[str, Any]:
+        order = self.store.get_broker_order(order_id)
+        if order is None:
+            raise ValueError(f"주문 원장을 찾을 수 없습니다: {order_id}")
+        return _summary(order)
+
     def positions(self) -> list[dict[str, Any]]:
         return parse_kis_positions(self.client.overseas_balance())
 
@@ -278,6 +284,12 @@ class TossBrokerAdapter:
     def list_orders(self, limit: int = 20) -> list[dict[str, Any]]:
         return self.store.list_orders(limit=limit)
 
+    def order_summary(self, order_id: int) -> dict[str, Any]:
+        order = self.store.get_order(order_id)
+        if order is None:
+            raise ValueError(f"주문 원장을 찾을 수 없습니다: {order_id}")
+        return _summary(order)
+
     def positions(self) -> list[dict[str, Any]]:
         return parse_toss_holdings(self.client.holdings())
 
@@ -297,6 +309,16 @@ class TossBrokerAdapter:
     def cancel_order(self, order_id: int, *, execute: bool) -> dict[str, Any]:
         result = self.gateway.cancel_order(order_id, execute=execute)
         return {"broker": self.name, **result}
+
+
+def _summary(order: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "side": str(order["side"]).upper(),
+        "symbol": str(order["symbol"]).upper(),
+        "currency": str(order.get("currency") or "USD").upper(),
+        "amount": _decimal(order["estimated_amount"]),
+        "status": str(order["status"]),
+    }
 
 
 def _first_decimal(data: dict[str, Any], *keys: str) -> Decimal:

@@ -79,9 +79,9 @@ reports Compose는 주문 허용 두 값을 `false`로 고정하며, 매니저�
 | `AI_MANAGER_DATA_DIR` | 매니저 요청·보고·투자논리·판단 원장; reports 컨테이너는 `/app/runtime/manager`로 고정 |
 | `CORE_DATABASE_PATH`, `CORE_KILL_SWITCH_PATH` | Core 원장과 중앙 Kill Switch 파일(기본 `core/data/kill-switch.json`, KIS·토스 패키지도 같은 값을 읽음) |
 | `KI_DB_PATH`, `TOSS_DB_PATH` | 브로커별 DB 경로 |
-| `CORE_MIN_CASH_PCT`, `CORE_MAX_SINGLE_POSITION_PCT` | Core 정책의 최소 현금·종목 비중 |
-| `CORE_MAX_LEVERAGED_EXPOSURE_PCT`, `CORE_LEVERAGED_SYMBOLS` | 레버리지 노출 정책과 해당 종목 목록 |
-| `CORE_MAX_DAILY_NEW_BUY_USD`, `CORE_MAX_QUOTE_DIVERGENCE_PCT` | Core 일일 신규 매수·브로커 시세 차이 제한 |
+| `CORE_MIN_CASH_PCT`, `CORE_MAX_SINGLE_POSITION_PCT` | 최소 현금·종목 비중. 비우면 정책 파일 값, 적으면 정책보다 엄격할 때만 반영 |
+| `CORE_MAX_LEVERAGED_EXPOSURE_PCT`, `CORE_LEVERAGED_SYMBOLS` | 레버리지 실효 노출 한도(엄격할 때만 반영)와 `종목:배수` 목록(배수 생략 시 3배) |
+| `CORE_MAX_DAILY_NEW_BUY_USD`, `CORE_MAX_QUOTE_DIVERGENCE_PCT` | 일일 매수 한도(엄격할 때만 반영)·브로커 시세 차이 제한 |
 | `CORE_PANIC_BUY_BLOCK_MINUTES` | Core 급변 시 매수 차단 시간 |
 
 Core 설정의 상대 DB 경로는 읽은 `.env` 디렉터리를 기준으로 해석합니다.

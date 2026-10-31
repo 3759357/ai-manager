@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Mapping
+from zoneinfo import ZoneInfo
 
 from ki.order_state import TERMINAL_ORDER_STATUSES
 
@@ -15,6 +17,20 @@ TOSS_TERMINAL_STATUSES = frozenset(
     {"FILLED", "REJECTED", "BLOCKED", "PREFLIGHT_BLOCKED", "CANCELED", "VOIDED",
      "SUBMIT_REJECTED", "SUBMIT_FAILED", "EXPIRED"}
 )
+# 브로커에 나가지 않아 일일 매수 합계에서 빼는 상태. 취소·만료된 주문은 일부 체결됐을 수
+# 있으므로 그날 한도에 남긴다(보수적). 토스 EXPIRED는 제출 전 후보 유효시간 만료다.
+KIS_NOT_PLACED_STATUSES = frozenset({"REJECTED", "PREFLIGHT_BLOCKED", "VOIDED"})
+TOSS_NOT_PLACED_STATUSES = frozenset(
+    {"BLOCKED", "PREFLIGHT_BLOCKED", "REJECTED", "VOIDED", "SUBMIT_REJECTED", "SUBMIT_FAILED", "EXPIRED"}
+)
+NOT_PLACED_STATUSES = {"kis": KIS_NOT_PLACED_STATUSES, "toss": TOSS_NOT_PLACED_STATUSES}
+# 미국 주식 기준 하루. 일일 매수 한도는 뉴욕 자정부터 센다.
+TRADING_DAY_ZONE = ZoneInfo("America/New_York")
+
+
+def trading_day_start(now: datetime | None = None) -> datetime:
+    local = (now or datetime.now(TRADING_DAY_ZONE)).astimezone(TRADING_DAY_ZONE)
+    return local.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 @dataclass
@@ -23,6 +39,8 @@ class BrokerPortfolio:
     cash: Decimal = Decimal("0")
     positions: list[dict[str, Any]] = field(default_factory=list)
     pending_buy_amount: Decimal = Decimal("0")
+    # 로컬 주문 원장(최근 500건). 일일 매수 합계 계산에 쓴다. None이면 원장을 못 읽었다.
+    orders: list[dict[str, Any]] | None = None
     skipped: list[str] = field(default_factory=list)
     error: str | None = None
 
@@ -149,31 +167,87 @@ def pending_buy_amount(
     return total
 
 
+def daily_buy_amount(
+    orders: list[dict[str, Any]],
+    not_placed_statuses: frozenset[str],
+    *,
+    since: datetime,
+    currency: str = "USD",
+    exclude_ids: frozenset[int] = frozenset(),
+) -> Decimal:
+    """since 이후 원장에 만든 매수 주문 금액 합계(브로커에 나가지 않은 주문 제외)."""
+    total = Decimal("0")
+    for order in orders:
+        if str(order.get("side") or "").upper() != "BUY":
+            continue
+        if str(order.get("status") or "").upper() in not_placed_statuses:
+            continue
+        if str(order.get("currency") or currency).upper() != currency:
+            continue
+        if order.get("id") is not None and int(order["id"]) in exclude_ids:
+            continue
+        try:
+            created = datetime.fromisoformat(str(order.get("created_at")))
+        except ValueError:
+            created = None
+        # 생성 시각을 모르면 오늘 주문으로 본다(보수적).
+        if created is not None and created.tzinfo is not None and created < since:
+            continue
+        amount = _first_decimal(order, "estimated_amount", "estimatedAmount")
+        if amount is not None and amount > 0:
+            total += amount
+    return total
+
+
 def build_snapshot(
     brokers: list[BrokerPortfolio],
     *,
-    leveraged_symbols: frozenset[str],
+    leveraged_symbols: frozenset[str] = frozenset(),
+    leverage_multipliers: Mapping[str, Decimal] | None = None,
     currency: str = "USD",
     extra_pending_buy: Decimal = Decimal("0"),
+    day_start: datetime | None = None,
+    exclude_order: tuple[str, int] | None = None,
 ) -> tuple[PortfolioSnapshot, dict[str, Any]]:
     """브로커별 수집 결과를 단일 통화 스냅샷으로 합산한다.
 
     같은 종목은 브로커를 넘어 합산해 단일 포지션 한도를 평가한다.
     """
+    multipliers = dict(leverage_multipliers or {})
+    for symbol in leveraged_symbols:
+        multipliers.setdefault(symbol, Decimal("3"))
+    since = day_start or trading_day_start()
     merged: dict[str, dict[str, Decimal]] = {}
     detail: dict[str, Any] = {"brokers": [], "skipped": []}
     total_cash = Decimal("0")
     total_pending = extra_pending_buy
+    bought_today: Decimal | None = Decimal("0")
     collected = 0
     for broker in brokers:
         broker_detail: dict[str, Any] = {"broker": broker.broker}
         if broker.error is not None:
             broker_detail["error"] = broker.error
             detail["brokers"].append(broker_detail)
+            bought_today = None  # 이 브로커의 오늘 매수를 알 수 없다.
             continue
         collected += 1
         total_cash += broker.cash
         total_pending += broker.pending_buy_amount
+        if broker.orders is None or bought_today is None:
+            bought_today = None
+        else:
+            exclude = (
+                frozenset({exclude_order[1]})
+                if exclude_order and exclude_order[0] == broker.broker
+                else frozenset()
+            )
+            bought_today += daily_buy_amount(
+                broker.orders,
+                NOT_PLACED_STATUSES.get(broker.broker, frozenset()),
+                since=since,
+                currency=currency,
+                exclude_ids=exclude,
+            )
         broker_detail["cash"] = format(broker.cash, "f")
         broker_detail["pending_buy_amount"] = format(
             broker.pending_buy_amount, "f"
@@ -210,7 +284,8 @@ def build_snapshot(
             quantity=bucket["quantity"],
             price=bucket["value"] / bucket["quantity"],
             currency=currency,
-            leveraged=symbol in leveraged_symbols,
+            leveraged=symbol in multipliers,
+            leverage_multiplier=multipliers.get(symbol, Decimal("1")),
         )
         for symbol, bucket in sorted(merged.items())
     )
@@ -219,7 +294,9 @@ def build_snapshot(
         positions=positions,
         currency=currency,
         pending_buy_amount=total_pending,
+        bought_today=bought_today,
     )
+    detail["bought_today"] = format(bought_today, "f") if bought_today is not None else None
     return snapshot, detail
 
 

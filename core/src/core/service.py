@@ -92,6 +92,7 @@ class BrokerService:
                 portfolio.cash = adapter.cash()
                 portfolio.positions = adapter.positions()
                 portfolio.pending_buy_amount = adapter.pending_buy_amount()
+                portfolio.orders = adapter.list_orders(limit=500)
             except Exception as exc:  # noqa: BLE001 - 브로커별 격리
                 portfolio.error = str(exc)
             results.append(portfolio)

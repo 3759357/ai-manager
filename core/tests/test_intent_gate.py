@@ -22,8 +22,8 @@ def _request(quantity: int = 1, price: str = "100") -> UnifiedOrderRequest:
 
 def _snapshot(cash: str, brokers_detail=None, extra=Decimal("0")):
     portfolios = [
-        BrokerPortfolio(broker="kis", cash=Decimal(cash)),
-        BrokerPortfolio(broker="toss", cash=Decimal("0")),
+        BrokerPortfolio(broker="kis", cash=Decimal(cash), orders=[]),
+        BrokerPortfolio(broker="toss", cash=Decimal("0"), orders=[]),
     ]
     return build_snapshot(
         portfolios,
@@ -37,7 +37,7 @@ class IntentRiskGateTest(unittest.TestCase):
         with patch.object(
             cli,
             "_live_snapshot",
-            side_effect=lambda settings, extra_pending_buy: _snapshot(
+            side_effect=lambda settings, extra_pending_buy, **_: _snapshot(
                 "10000",
                 extra=extra_pending_buy,
             ),
@@ -48,11 +48,11 @@ class IntentRiskGateTest(unittest.TestCase):
         self.assertEqual(result["intent_amount"], "100")
 
     def test_block_when_cash_pct_falls_below_minimum(self) -> None:
-        # 현금 1000에서 900짜리 매수 → 잔여 현금 10% < 35%
+        # 현금 1000에서 900짜리 매수 → 잔여 현금 10% < 정책 하한 20%
         with patch.object(
             cli,
             "_live_snapshot",
-            side_effect=lambda settings, extra_pending_buy: _snapshot(
+            side_effect=lambda settings, extra_pending_buy, **_: _snapshot(
                 "1000",
                 extra=extra_pending_buy,
             ),
@@ -68,9 +68,9 @@ class IntentRiskGateTest(unittest.TestCase):
         )
 
     def test_broker_collection_error_blocks_conservatively(self) -> None:
-        def snapshot_with_error(settings, extra_pending_buy):
+        def snapshot_with_error(settings, extra_pending_buy, **_):
             portfolios = [
-                BrokerPortfolio(broker="kis", cash=Decimal("10000")),
+                BrokerPortfolio(broker="kis", cash=Decimal("10000"), orders=[]),
                 BrokerPortfolio(broker="toss", error="인증 실패"),
             ]
             return build_snapshot(

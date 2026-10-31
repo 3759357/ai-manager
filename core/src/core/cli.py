@@ -30,6 +30,7 @@ from core.strategy import StrategyStore
 from core.strategy_worker import StrategyWorker
 from core.portfolio import build_snapshot
 from core.risk import (
+    OrderImpact,
     PortfolioPosition,
     PortfolioRiskLimits,
     PortfolioSnapshot,
@@ -192,11 +193,6 @@ def _parser() -> argparse.ArgumentParser:
     intent.add_argument("--price", required=True)
     intent.add_argument("--currency", choices=["USD", "KRW"], default="USD")
     intent.add_argument("--source", default="core-cli")
-    intent.add_argument(
-        "--skip-risk",
-        action="store_true",
-        help="주문 후보 생성 전 중앙 리스크 자동 평가 생략",
-    )
 
     orders = subparsers.add_parser("orders", help="브로커별 로컬 주문 원장 조회")
     orders.add_argument("--broker", choices=["kis", "toss", "both"], default="both")
@@ -354,58 +350,133 @@ def _parse_position(value: str) -> PortfolioPosition:
         raise ValueError("포지션 symbol이 필요합니다.")
     if flag and flag not in {"leveraged", "lev", "2x", "3x"}:
         raise ValueError("포지션 4번째 값은 leveraged/lev/2x/3x만 허용합니다.")
+    multiplier = {"2x": Decimal("2"), "3x": Decimal("3")}.get(flag, Decimal("3"))
     return PortfolioPosition(
         symbol=symbol.strip().upper(),
         quantity=Decimal(quantity),
         price=Decimal(price),
         leveraged=bool(flag),
+        leverage_multiplier=multiplier if flag else Decimal("1"),
     )
 
 
 def _portfolio_limits(settings: Settings) -> PortfolioRiskLimits:
-    return PortfolioRiskLimits(
-        min_cash_pct=settings.min_cash_pct,
-        max_leveraged_exposure_pct=settings.max_leveraged_exposure_pct,
-        max_single_position_pct=settings.max_single_position_pct,
-        max_daily_new_buy_usd=settings.max_daily_new_buy_usd,
-        panic_buy_block_minutes=settings.panic_buy_block_minutes,
-    )
+    """한도는 리스크관리부 정책 파일 하나에서 온다. 환경변수는 더 엄격하게만 반영한다."""
+    from core.guard import load_policy
+
+    return PortfolioRiskLimits.from_policy(load_policy(), settings)
 
 
 def _live_snapshot(
     settings: Settings,
     *,
     extra_pending_buy: Decimal = Decimal("0"),
+    exclude_order: tuple[str, int] | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     service = _service(settings, {"kis", "toss"})
     portfolios = service.collect_broker_portfolios()
     return build_snapshot(
         portfolios,
-        leveraged_symbols=frozenset(settings.leveraged_symbols),
+        leverage_multipliers=settings.leverage_multipliers,
         extra_pending_buy=extra_pending_buy,
+        exclude_order=exclude_order,
     )
 
 
-def _intent_risk_gate(
-    settings: Settings,
-    request: UnifiedOrderRequest,
-) -> dict[str, Any]:
-    """주문 후보 생성 전 통합 리스크를 평가한다.
+def _order_impact(settings: Settings, symbol: str, amount: Decimal) -> OrderImpact:
+    return OrderImpact(
+        symbol=symbol.upper(),
+        amount=amount,
+        leverage_multiplier=settings.leverage_multipliers.get(symbol.upper(), Decimal("1")),
+    )
 
-    브로커 수집 실패는 보수적으로 BLOCK 사유에 포함한다.
-    """
-    amount = request.price * request.quantity
-    snapshot, detail = _live_snapshot(settings, extra_pending_buy=amount)
-    result = evaluate_portfolio_risk(snapshot, _portfolio_limits(settings))
+
+def _evaluate_with_live_state(
+    settings: Settings,
+    order: OrderImpact,
+    *,
+    extra_pending_buy: Decimal,
+    exclude_order: tuple[str, int] | None = None,
+) -> dict[str, Any]:
+    snapshot, detail = _live_snapshot(
+        settings,
+        extra_pending_buy=extra_pending_buy,
+        exclude_order=exclude_order,
+    )
+    result = evaluate_portfolio_risk(snapshot, _portfolio_limits(settings), order=order)
+    # 브로커 수집 실패는 보수적으로 BLOCK한다.
     for broker in detail["brokers"]:
         if "error" in broker:
             result["reasons"].append(
                 f"{broker['broker']} 포지션 수집 실패: {broker['error']}"
             )
             result["decision"] = "BLOCK"
-    result["intent_amount"] = format(amount, "f")
+    result["intent_amount"] = format(order.amount, "f")
     result["live_detail"] = detail
     return result
+
+
+def _intent_risk_gate(
+    settings: Settings,
+    request: UnifiedOrderRequest,
+) -> dict[str, Any]:
+    """주문 후보를 만들기 전 통합 리스크를 평가한다. 새 주문 금액을 대기 매수에 더해 본다."""
+    amount = request.price * request.quantity
+    return _evaluate_with_live_state(
+        settings,
+        _order_impact(settings, request.symbol, amount),
+        extra_pending_buy=amount,
+    )
+
+
+def _submit_risk_gate(
+    settings: Settings,
+    service: BrokerService,
+    broker: str,
+    order_id: int,
+) -> dict[str, Any] | None:
+    """제출 직전 같은 한도로 다시 평가한다. 매수가 아니거나 USD가 아니면 None.
+
+    후보는 이미 원장에 있어 대기 매수에 들어 있으므로 금액을 다시 더하지 않고,
+    일일 매수 합계에서는 이 주문을 빼고 계산한 뒤 주문 금액을 더한다.
+    """
+    summary = service.adapters[broker].order_summary(order_id)
+    if summary["side"] != "BUY" or summary["currency"] != "USD":
+        return None
+    return _evaluate_with_live_state(
+        settings,
+        _order_impact(settings, summary["symbol"], summary["amount"]),
+        extra_pending_buy=Decimal("0"),
+        exclude_order=(broker, order_id),
+    )
+
+
+def _block_on_risk(settings: Settings, result: dict[str, Any], *, broker: str,
+                   symbol: str, label: str) -> None:
+    if result["decision"] == "ALLOW":
+        return
+    _record_order_event(
+        settings,
+        category="RISK",
+        severity="warning",
+        event_type=f"{label}_RISK_{result['decision']}",
+        summary=(
+            f"[Core 리스크] {symbol} BUY {result['decision']}: "
+            + "; ".join(result["reasons"] + result["warnings"])
+        )[:500],
+        broker=broker,
+        symbol=symbol,
+        payload={
+            "decision": result["decision"],
+            "reasons": result["reasons"],
+            "warnings": result["warnings"],
+        },
+    )
+    if result["decision"] == "BLOCK":
+        _print(result)
+        raise ValueError(
+            "중앙 리스크 평가에서 차단되었습니다. 사유를 확인하고 정책 한도 안에서 다시 시도하세요."
+        )
 
 
 def _guard_command(args: argparse.Namespace, settings: Settings) -> Any:
@@ -635,7 +706,7 @@ def main(argv: list[str] | None = None) -> None:
         if args.command == "positions":
             snapshot, detail = build_snapshot(
                 service.collect_broker_portfolios(),
-                leveraged_symbols=frozenset(settings.leveraged_symbols),
+                leverage_multipliers=settings.leverage_multipliers,
             )
             _print(
                 {
@@ -687,41 +758,14 @@ def main(argv: list[str] | None = None) -> None:
                 currency=args.currency,
                 source=args.source,
             )
-            if (
-                request.side == "buy"
-                and request.currency == "USD"
-                and not args.skip_risk
-            ):
-                risk_result = _intent_risk_gate(settings, request)
-                if risk_result["decision"] != "ALLOW":
-                    _record_order_event(
-                        settings,
-                        category="RISK",
-                        severity="warning",
-                        event_type=f"INTENT_RISK_{risk_result['decision']}",
-                        summary=(
-                            f"[Core 리스크] {request.symbol} BUY "
-                            f"{request.quantity}주 "
-                            f"{risk_result['decision']}: "
-                            + "; ".join(
-                                risk_result["reasons"]
-                                + risk_result["warnings"]
-                            )
-                        )[:500],
-                        broker=request.broker,
-                        symbol=request.symbol,
-                        payload={
-                            "decision": risk_result["decision"],
-                            "reasons": risk_result["reasons"],
-                            "warnings": risk_result["warnings"],
-                        },
-                    )
-                if risk_result["decision"] == "BLOCK":
-                    _print(risk_result)
-                    raise ValueError(
-                        "중앙 리스크 평가에서 차단되었습니다. "
-                        "사유 확인 후 필요하면 --skip-risk로 우회합니다."
-                    )
+            if request.side == "buy" and request.currency == "USD":
+                _block_on_risk(
+                    settings,
+                    _intent_risk_gate(settings, request),
+                    broker=request.broker,
+                    symbol=request.symbol,
+                    label="INTENT",
+                )
             result = service.create_order_candidate(request)
             _record_order_event(
                 settings,
@@ -741,6 +785,16 @@ def main(argv: list[str] | None = None) -> None:
         if args.command == "orders":
             _print(service.list_orders(args.broker, limit=args.limit))
             return
+        if args.command == "submit" and args.execute:
+            gate = _submit_risk_gate(settings, service, args.broker, args.order_id)
+            if gate is not None:
+                _block_on_risk(
+                    settings,
+                    gate,
+                    broker=args.broker,
+                    symbol=str(gate["order"]["symbol"]),
+                    label="SUBMIT",
+                )
         if args.command in {"submit", "cancel"}:
             action = (
                 service.submit_order

@@ -74,7 +74,7 @@ class PortfolioRiskTest(unittest.TestCase):
         )
 
         self.assertEqual(report["decision"], "BLOCK")
-        self.assertIn("레버리지 노출", report["reasons"][0])
+        self.assertIn("레버리지 실효 노출", report["reasons"][0])
         self.assertEqual(report["leveraged_exposure_pct"], "62.96")
 
 
