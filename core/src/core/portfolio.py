@@ -4,12 +4,12 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from ki.order_state import TERMINAL_ORDER_STATUSES
+
 from core.risk import PortfolioPosition, PortfolioSnapshot
 
-# 로컬 원장에서 예약 노출로 보지 않는 종결 상태
-KIS_TERMINAL_STATUSES = frozenset(
-    {"FILLED", "REJECTED", "PREFLIGHT_BLOCKED", "CANCELED", "VOIDED"}
-)
+# 로컬 원장에서 예약 노출로 보지 않는 종결 상태. KIS는 상태 머신의 정의를 그대로 쓴다.
+KIS_TERMINAL_STATUSES = TERMINAL_ORDER_STATUSES
 # SUBMITTING·SUBMIT_UNKNOWN은 접수됐을 수 있으므로 종결로 보지 않는다(미체결 노출로 예약).
 TOSS_TERMINAL_STATUSES = frozenset(
     {"FILLED", "REJECTED", "BLOCKED", "PREFLIGHT_BLOCKED", "CANCELED", "VOIDED",

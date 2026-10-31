@@ -49,3 +49,14 @@ class OrderStateTest(unittest.TestCase):
             assert_order_cancelable(PREFLIGHT_BLOCKED)
         with self.assertRaises(OrderStateError):
             assert_order_voidable(ACCEPTED)
+
+
+class ExpiredStatusTest(unittest.TestCase):
+    def test_expired_is_terminal(self) -> None:
+        from ki.order_state import EXPIRED, PARTIALLY_FILLED, TERMINAL_ORDER_STATUSES
+
+        assert_order_transition(ACCEPTED, EXPIRED)
+        assert_order_transition(PARTIALLY_FILLED, EXPIRED)
+        self.assertIn(EXPIRED, TERMINAL_ORDER_STATUSES)
+        with self.assertRaises(OrderStateError):
+            assert_order_transition(EXPIRED, ACCEPTED)

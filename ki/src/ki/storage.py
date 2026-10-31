@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -399,6 +400,18 @@ class SnapshotStore:
                 (limit,),
             ).fetchall()
         return [_row_to_dict(row) for row in rows]
+
+    def fill_totals(self, order_id: int) -> tuple[int, Decimal]:
+        """주문에 이미 기록한 체결 수량 합계와 금액 합계."""
+        with sqlite3.connect(self.database_path) as connection:
+            self._create_schema(connection)
+            rows = connection.execute(
+                "SELECT quantity, price FROM fills WHERE order_id = ?",
+                (order_id,),
+            ).fetchall()
+        quantity = sum(int(row[0]) for row in rows)
+        amount = sum((Decimal(str(row[1])) * int(row[0]) for row in rows), Decimal("0"))
+        return quantity, amount
 
     def list_fills(self, limit: int = 20) -> list[dict[str, Any]]:
         with sqlite3.connect(self.database_path) as connection:
