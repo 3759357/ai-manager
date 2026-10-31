@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: core/Dockerfile
+    # root가 아닌 배포 사용자 UID로 실행한다(deploy.sh가 릴리스 .env에 기록).
+    user: "${AI_MANAGER_UID:-10001}:${AI_MANAGER_GID:-10001}"
     env_file:
       - ./core/.env
     environment:
@@ -13,8 +15,9 @@ services:
       TOSS_ALLOW_ORDERS: "false"
     volumes:
       - ./core/data/manager:/app/runtime/manager
-      - ~/.cache/ki:/root/.cache/ki
-      - ./secrets:/run/ai-manager-secrets:ro
+      - ~/.cache/ki:/home/app/.cache/ki
+      # APNs 키만 넘긴다. secrets/의 LLM 인증(codex 등)은 이 컨테이너에 보이지 않는다.
+      - ./secrets/apns:/run/ai-manager-secrets/apns:ro
     restart: unless-stopped
     command: ["ai-manager", "worker"]
     logging:

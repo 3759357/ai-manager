@@ -6,6 +6,7 @@
 # core 컨테이너에 docker.sock 을 주지 않기 위한 구조다.
 # 워커와 에이전트 사이에 네트워크가 없어도 동작한다.
 set -uo pipefail
+umask 077
 
 SPOOL="${SPOOL_DIR:-/spool}"
 INTERVAL="${POLL_INTERVAL:-1}"

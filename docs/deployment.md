@@ -222,6 +222,11 @@ git push server main
 서버의 `post-receive`가 실행되지는 않습니다. GitHub Actions 기반 배포 워크플로는 현재 포함하지 않습니다.
 기존 SSH 인증을 사용하며 GitHub에 서버 개인키를 올릴 필요가 없습니다.
 
+컨테이너는 root가 아니라 배포 사용자의 UID로 실행됩니다(`AI_MANAGER_UID`/`AI_MANAGER_GID`, deploy.sh가 설정).
+배포할 때마다 같은 이미지를 네트워크 없이 한 번만 root로 실행해 `shared/`의 data·spool·secrets와
+`~/.cache/ki`의 소유자를 배포 사용자로 맞추므로, 예전 root 컨테이너가 만든 파일도 그대로 이어서 씁니다.
+서버에서 Compose를 직접 실행할 때는 먼저 `export AI_MANAGER_UID=$(id -u) AI_MANAGER_GID=$(id -g)`를 실행합니다.
+
 ### 선택: 로컬 main 커밋마다 서버로 자동 push
 
 서버 remote와 수동 배포가 정상 동작하는 것을 확인한 뒤 **로컬**에서 활성화합니다.
@@ -306,7 +311,7 @@ GitHub는 소스 백업이며 이 데이터의 백업을 대신하지 않습니�
 | 보고·지시·투자논리·판단 원장 | `shared/core/data/manager/` | SQLite. 쓰기 중인 worker를 멈춘 뒤 복사 |
 | 브로커 원장 | `shared/ki/data/`, `shared/toss/data/` | 주문·체결·대사 기록 |
 | 설정 | `shared/core/.env`, `shared/deploy.env` | 권한 600 유지 |
-| APNs 키 | `shared/secrets/apns.p8` | 권한 600 유지 |
+| APNs 키 | `shared/secrets/apns/apns.p8` | 권한 600 유지 |
 
 | 옮기지 않는 것 | 이유 |
 | --- | --- |

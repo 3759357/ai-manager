@@ -5,7 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates jq \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @openai/codex@latest
+# 재현 가능한 빌드를 위해 버전을 고정한다. 올릴 때는 이 값만 바꾼다.
+ARG CODEX_VERSION=0.166.0
+RUN npm install -g "@openai/codex@${CODEX_VERSION}"
 
 COPY run.sh /usr/local/bin/agent-run
 COPY loop.sh /usr/local/bin/agent-loop

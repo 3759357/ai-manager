@@ -8,9 +8,11 @@ services:
     build:
       context: ./mind
       dockerfile: Dockerfile.codex
-    user: "0:0"
+    # report-worker와 같은 비root UID로 실행해 스풀 파일을 서로 읽고 쓴다.
+    user: "${AI_MANAGER_UID:-10001}:${AI_MANAGER_GID:-10001}"
     environment:
       AGENT_ROLE: judge
+      HOME: /work
       CODEX_HOME: /home/agent/.codex
       SPOOL_DIR: /spool
       POLL_INTERVAL: "2"
@@ -22,7 +24,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      - /work:mode=700
+      - /work:mode=700,uid=${AI_MANAGER_UID:-10001},gid=${AI_MANAGER_GID:-10001}
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     networks: [planner]

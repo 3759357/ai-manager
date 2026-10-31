@@ -25,8 +25,13 @@
 
 name: ai-manager
 
+# 모든 컨테이너는 root가 아닌 배포 사용자 UID로 실행한다. deploy.sh가 릴리스의 .env에
+# AI_MANAGER_UID/GID를 써 두므로 호스트의 data·spool 파일 소유자와 같아진다.
+x-run-as: &run-as "${AI_MANAGER_UID:-10001}:${AI_MANAGER_GID:-10001}"
+
 x-ki-service: &ki-service
   build: ./ki
+  user: *run-as
   env_file:
     - ./core/.env
   restart: unless-stopped
@@ -55,6 +60,7 @@ services:
     build:
       context: .
       dockerfile: core/Dockerfile
+    user: *run-as
     env_file:
       - ./core/.env
     environment:
@@ -66,7 +72,6 @@ services:
       - ./core/data:/app/runtime/core
       - ./ki/data:/app/runtime/ki
       - ./toss/data:/app/runtime/toss
-      - ./spool:/app/runtime/spool
     restart: unless-stopped
     command: ["core", "notify-worker", "--sync", "--interval", "5"]
     healthcheck:
@@ -86,7 +91,7 @@ services:
       <<: *ki-env
     volumes:
       - ./ki/data:/app/data
-      - ~/.cache/ki:/root/.cache/ki
+      - ~/.cache/ki:/home/app/.cache/ki
     command: ["ki", "worker", "--interval", "60"]
     healthcheck: *ki-healthcheck
 
@@ -119,7 +124,7 @@ services:
     volumes:
       - ./ki/data:/app/data
       - ./core/data:/app/runtime/core:ro
-      - ~/.cache/ki:/root/.cache/ki
+      - ~/.cache/ki:/home/app/.cache/ki
     profiles:
       - signals
     command:
@@ -146,6 +151,7 @@ services:
     build:
       context: .
       dockerfile: core/Dockerfile
+    user: *run-as
     env_file:
       - ./core/.env
     environment:
@@ -178,9 +184,9 @@ services:
 
   # LLM 심사 게이트웨이.
   #
-  # 브로커 키를 주입하지 않는다. core/.env 를 env_file 로 걸지 않는 것이
-  # 이 서비스의 핵심이다. 다른 서비스와 네트워크도 공유하지 않으므로
-  # 증권사 API 는 이 컨테이너에서 닿지 않는다.
+  # 브로커 키·계좌 DB·Docker 소켓을 주지 않는다. core/.env 를 env_file 로 걸지 않는 것이
+  # 이 서비스의 핵심이다. 다른 서비스와 네트워크를 공유하지 않지만, LLM API를 쓰려면
+  # 인터넷 출구가 필요하므로 증권사 API 주소 자체를 막지는 않는다(인증 정보가 없어 호출할 수 없을 뿐이다).
   #
   # 워커와는 ./spool 볼륨으로만 대화한다. docker.sock 을 주지 않기 위함이다.
   #
@@ -190,6 +196,7 @@ services:
     build:
       context: ./mind
       dockerfile: Dockerfile.codex
+    user: *run-as
     environment:
       AGENT_ROLE: ${AGENT_ROLE:-reviewer}
       SPOOL_DIR: /spool

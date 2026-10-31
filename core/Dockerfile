@@ -14,4 +14,9 @@ COPY core ./core
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir -e ./ki -e ./toss -e './core[push]'
 
+# root로 실행하지 않는다. Compose는 배포 사용자 UID로 덮어써 호스트 데이터 소유자와 맞춘다.
+RUN useradd --create-home --uid 10001 app
+ENV HOME=/home/app
+USER app
+
 CMD ["core", "notify-worker", "--sync", "--interval", "5"]

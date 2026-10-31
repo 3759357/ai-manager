@@ -12,4 +12,8 @@ COPY scripts ./scripts
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir -e .
 
-CMD ["python", "scripts/stream_apple_orderbook.py"]
+RUN useradd --create-home --uid 10001 app
+ENV HOME=/home/app
+USER app
+
+CMD ["ki", "--help"]

@@ -98,7 +98,7 @@ git push server main                                       # 내 PC: 빌드 → 
 | 항목 | 준비 방법 |
 | --- | --- |
 | LLM 판단기(planner) 인증 | 서버마다 `planner-login.sh`로 로그인. 인증 파일을 다른 서버에서 복사하지 않음 |
-| APNs 푸시 | 유료 Apple 개발자 계정의 `.p8` 키를 `shared/secrets/`에 두고 키 ID 등은 `.env`에 입력 |
+| APNs 푸시 | 유료 Apple 개발자 계정의 `.p8` 키를 `shared/secrets/apns/`에 두고 키 ID 등은 `.env`에 입력 |
 | iPhone 앱 | 본인 서명으로 빌드하고 서버 주소·SSH 키·서버 호스트 공개키 등록 |
 | 증권사 API | 허용 IP 등록 같은 조건이 있으면 서버 IP로 설정 |
 

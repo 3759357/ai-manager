@@ -56,6 +56,9 @@ import json, os, sys
 args = sys.argv[1:]
 with open(os.environ["DOCKER_CALLS"], "a") as log:
     log.write(json.dumps(args) + "\\n")
+if "up" in args:
+    with open(os.environ["DOCKER_CALLS"] + ".uid", "a") as log:
+        log.write(os.environ.get("AI_MANAGER_UID", "unset") + ":" + os.environ.get("AI_MANAGER_GID", "unset") + "\\n")
 mode = os.environ.get("DOCKER_FAILURE")
 if mode == "test" and args[0] == "run":
     sys.exit(1)
@@ -159,6 +162,26 @@ if mode == "smoke" and "exec" in args:
     def test_no_notification_without_webhook(self):
         self.run_deploy()
         self.assertFalse(self.curl_calls.exists())
+
+    def test_containers_run_as_the_deploy_user_after_one_ownership_fix(self):
+        result, calls = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        runs = [c for c in calls if c[0] == "run"]
+        self.assertEqual(len(runs), 2)  # 격리 테스트 1회 + 소유자 정리 1회
+        fix = runs[1]
+        self.assertEqual(fix[fix.index("--user") + 1], "0")
+        self.assertEqual(fix[fix.index("--network") + 1], "none")
+        self.assertIn(f"{self.deploy}/shared:/shared", fix)
+        uid, gid = str(os.getuid()), str(os.getgid())
+        self.assertEqual(fix[-2:], [uid, gid])
+        up_users = Path(str(self.calls) + ".uid").read_text().split()
+        self.assertTrue(up_users)
+        self.assertEqual(set(up_users), {f"{uid}:{gid}"})
+
+    def test_ownership_fix_runs_only_after_tests_pass(self):
+        result, calls = self.run_deploy("test")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(len([c for c in calls if c[0] == "run"]), 1)
 
 
 @unittest.skipUnless(sys.platform == "linux", "Hook test uses a Linux shell")

@@ -9,6 +9,10 @@
 set -euo pipefail
 umask 077
 unset COMPOSE_PROFILES COMPOSE_FILE
+# 컨테이너는 root가 아니라 배포 사용자 UID로 실행한다(Compose의 user 값).
+AI_MANAGER_UID=$(id -u)
+AI_MANAGER_GID=$(id -g)
+export AI_MANAGER_UID AI_MANAGER_GID
 deploy_root=${AI_MANAGER_DEPLOY_ROOT:-$HOME/ai-manager}
 deploy_repo=${AI_MANAGER_DEPLOY_REPO:-$HOME/repos/ai-manager.git}
 mkdir -p "$deploy_root/releases" "$deploy_root/logs"
@@ -112,6 +116,22 @@ EOF
     fi
 } > deploy-reports-images.yml
 printf '%s\n' "${stacks[@]}" > deploy-stacks.txt
+
+stage=permissions
+# 예전 root 컨테이너가 만든 파일까지 배포 사용자 소유로 맞춘다. 같은 이미지를 한 번만 root로,
+# 네트워크 없이 실행한다. APNs 키 디렉터리와 KIS 토큰 캐시도 미리 만들어 둔다.
+mkdir -p "$HOME/.cache/ki"
+docker run --rm --network none --user 0 --entrypoint sh \
+    -v "$deploy_root/shared:/shared" -v "$HOME/.cache/ki:/kicache" \
+    "ai-manager-core:$revision" -ec '
+        mkdir -p /shared/secrets/apns /shared/spool /shared/core/data/manager
+        for path in /shared/core/data /shared/ki/data /shared/toss/data /shared/spool /shared/secrets /kicache; do
+            if [ -e "$path" ]; then chown -R "$1:$2" "$path"; fi
+        done
+    ' sh "$AI_MANAGER_UID" "$AI_MANAGER_GID"
+if compgen -G "$deploy_root/shared/secrets/*.p8" >/dev/null; then
+    echo "주의: APNs 키(.p8)는 shared/secrets/apns/로 옮기고 AI_MANAGER_APNS_KEY_PATH를 /run/ai-manager-secrets/apns/<파일>로 바꾸세요." >&2
+fi
 
 compose_trading() {
     docker compose --project-name ai-manager --project-directory "$1" \

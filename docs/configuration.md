@@ -97,7 +97,7 @@ Core 정책과 브로커 개별 CLI의 적용 경로는 다르므로 한 값을 
 | `CORE_DISCORD_WEBHOOK_URL`, `CORE_DISCORD_USERNAME` | Discord 전송; webhook URL 자체가 인증정보 |
 | `CORE_NOTIFY_CHANNELS` | Core 알림 worker 채널; 기본 `console` |
 | `AI_MANAGER_APNS_TEAM_ID`, `AI_MANAGER_APNS_KEY_ID` | APNs 키의 팀·키 식별값 |
-| `AI_MANAGER_APNS_KEY_PATH` | reports 컨테이너 기준 `/run/ai-manager-secrets/apns.p8` |
+| `AI_MANAGER_APNS_KEY_PATH` | reports 컨테이너 기준 `/run/ai-manager-secrets/apns/apns.p8` |
 | `AI_MANAGER_APNS_TOPIC` | 본인의 iOS 앱 번들 ID |
 | `AI_MANAGER_PLANNER_ENABLED` | 투자논리 AI 초안·정기 판단 요청; 단독 reports 기본 꺼짐, planner Compose 추가 시 `true` |
 | `secrets/codex-planner/` | planner의 전용 `CODEX_HOME`; 로그인 정보·갱신 토큰 저장 |
@@ -115,7 +115,7 @@ APNs는 키·서명·기기 등록까지 별도 준비해야 하며 실제 기�
 | SSH 개인키 | 개발 PC의 기존 키 / iPhone Keychain | Git·LLM 컨테이너에 전달하지 않음 |
 | 서버 호스트 공개키 | iPhone 서버 연결 설정 | 신뢰하는 SSH 경로로 확인; 변경 시 원인 확인 후 갱신 |
 | Codex 인증 캐시 | 서버 `shared/secrets/codex-planner/` | 전용 디렉터리, planner에서 쓰기 가능하게 유지 |
-| APNs `.p8` | 서버 `shared/secrets/apns.p8` | 디렉터리 `700`, 파일 `600`; reports에는 읽기 전용 마운트 |
+| APNs `.p8` | 서버 `shared/secrets/apns/apns.p8` | 디렉터리 `700`, 파일 `600`; reports에는 이 디렉터리만 읽기 전용 마운트(LLM 인증은 보이지 않음) |
 | iOS 개인 서명 설정 | 로컬 `ios/Config/Local.xcconfig` | Xcode에서 본인의 기존 개발 팀 사용 |
 
 기존 키를 재사용하며 설치 도구가 브로커·SSH·Apple 키를 새로 발급하지 않습니다.

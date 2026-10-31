@@ -6,6 +6,10 @@
 #   위 명령에 --enable을 붙이면 성공 후 deploy.env에 planner를 켜고 다시 배포한다.
 # 개인 ~/.codex는 복사하지 않는다. API 키는 인자·환경변수로 받지 않는다(셸 기록·프로세스 목록 노출 방지).
 set -euo pipefail
+# deploy.sh와 같은 비root UID로 실행한다.
+AI_MANAGER_UID=$(id -u)
+AI_MANAGER_GID=$(id -g)
+export AI_MANAGER_UID AI_MANAGER_GID
 
 deploy_root=${AI_MANAGER_DEPLOY_ROOT:-$HOME/ai-manager}
 app=$deploy_root/current
@@ -45,7 +49,7 @@ if [[ $mode != status ]]; then
         echo "브라우저에 표시된 주소에서, 방금 이 서버가 요청한 로그인 코드만 입력하세요."
         "${compose[@]}" run --rm --no-deps "${codex_file[@]}" login --device-auth
     fi
-    # planner는 root로 실행되므로 권한 정리도 같은 컨테이너에서 한다(sudo 불필요).
+    # planner는 배포 사용자 UID로 실행되므로 자기 파일의 권한을 직접 정리할 수 있다.
     "${compose[@]}" run --rm --no-deps -T --entrypoint sh planner \
         -c 'chmod 700 /home/agent/.codex && chmod 600 /home/agent/.codex/auth.json'
 fi
