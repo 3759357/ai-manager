@@ -64,6 +64,10 @@ _SCHEMA: dict[str, dict[str, str]] = {
 }
 
 
+# 호가 시각이 현재보다 이만큼 넘게 미래면 신뢰하지 않는다.
+QUOTE_CLOCK_SKEW = timedelta(seconds=5)
+
+
 class PolicyError(ValueError):
     """정책 파일이 계약과 맞지 않는다."""
 
@@ -315,6 +319,9 @@ def evaluate(intent: OrderIntent, account: AccountState, quote: Quote, policy: P
         block("bad_quote", "호가가 비정상입니다(매수1호가 ≤ 매도1호가가 아님).")
     elif now - quote.as_of > timedelta(seconds=float(order["max_quote_age_seconds"])):
         block("stale_quote", f"호가가 {order['max_quote_age_seconds']}초보다 오래됐습니다.")
+    elif quote.as_of - now > QUOTE_CLOCK_SKEW:
+        # 미래 시각 호가는 신선도를 증명하지 못한다(시계 오류·잘못된 입력).
+        block("future_quote", "호가 시각이 현재보다 미래입니다.")
     if intent.limit_price is None:
         if order["limit_only"]:
             block("not_limit", "지정가 주문만 허용합니다.")
@@ -337,6 +344,11 @@ def evaluate(intent: OrderIntent, account: AccountState, quote: Quote, policy: P
             block("oversell", f"{intent.book} 장부 보유 {held}주보다 많이 팔 수 없습니다(공매도 금지).")
         return done()
 
+    if intent.limit_price is None:
+        # 지정가가 없으면 주문 금액을 0으로 계산하게 되어 금액 한도가 모두 통과한다.
+        # limit_only 정책과 별개로 매수는 금액을 알 수 있을 때만 판정한다.
+        block("price_unknown", "매수 금액을 계산할 지정가가 없어 매수하지 않습니다.")
+        return done()
     _check_buy(intent, account, policy, now, block)
     return done()
 

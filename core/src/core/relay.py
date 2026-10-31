@@ -52,6 +52,7 @@ class OutboxRelay:
             "ki:fills": self._sync_ki_fills(),
             "ki:risk_decisions": self._sync_ki_risk_decisions(),
             "toss:order_events": self._sync_toss_order_events(),
+            "ki:market_signals": self._sync_ki_buy_candidates(),
         }
         results["relayed_total"] = sum(
             item["relayed"] for item in results.values()
@@ -82,6 +83,26 @@ class OutboxRelay:
                 LIMIT ?
             """,
             build=self._build_ki_order_event,
+        )
+
+    def _sync_ki_buy_candidates(self) -> dict[str, Any]:
+        """dip-watch 매수 후보를 SIGNAL/BUY_CANDIDATE로 복제한다. strategy-worker가 이것을 심사한다."""
+        return self._sync_source(
+            source="ki:market_signals",
+            database_path=self.kis_database_path,
+            query="""
+                SELECT
+                    id AS row_id,
+                    created_at,
+                    symbol,
+                    message,
+                    payload_json
+                FROM market_signals
+                WHERE id > ? AND signal_type = 'BUY_CANDIDATE'
+                ORDER BY id ASC
+                LIMIT ?
+            """,
+            build=self._build_ki_buy_candidate,
         )
 
     def _sync_ki_fills(self) -> dict[str, Any]:
@@ -224,6 +245,39 @@ class OutboxRelay:
             occurred_at=str(row["created_at"]),
         )
 
+    def _build_ki_buy_candidate(self, row: sqlite3.Row) -> OutboxEvent:
+        raw = _load_json(row["payload_json"])
+        raw = raw if isinstance(raw, dict) else {}
+        target = raw.get("target") if isinstance(raw.get("target"), dict) else {}
+        entries = []
+        if raw.get("suggested_limit_price") not in {None, ""}:
+            entries.append({
+                "price": str(raw["suggested_limit_price"]),
+                "quantity": raw.get("tranche_quantity") or raw.get("quantity"),
+            })
+        payload = {
+            # strategy-worker 계약: entries·stage·drop_bucket(심사 캐시 서명)
+            "symbol": str(row["symbol"]).upper(),
+            "entries": entries,
+            "stage": raw.get("tranche_index"),
+            "drop_bucket": _drop_bucket(target.get("drawdown_pct")),
+            "plan_id": raw.get("plan_id"),
+            "rebound_pct": target.get("rebound_pct"),
+            "signal_id": int(row["row_id"]),
+        }
+        return OutboxEvent(
+            dedup_key=f"ki:market_signals:{row['row_id']}",
+            source="ki",
+            category="SIGNAL",
+            event_type="BUY_CANDIDATE",
+            broker="kis",
+            symbol=str(row["symbol"]).upper(),
+            severity="info",
+            summary=f"[KIS 후보] {row['message']}"[:500],
+            payload=payload,
+            occurred_at=str(row["created_at"]),
+        )
+
     def _build_ki_fill(self, row: sqlite3.Row) -> OutboxEvent:
         symbol = str(row["symbol"])
         side = str(row["side"]).upper()
@@ -304,6 +358,14 @@ class OutboxRelay:
             payload=_mask_payload(_load_json(row["payload_json"])),
             occurred_at=str(row["created_at"]),
         )
+
+
+def _drop_bucket(value: Any) -> str | None:
+    """낙폭을 정수 % 구간으로 묶는다(같은 상황의 반복 심사를 캐시로 막기 위함)."""
+    try:
+        return f"{int(float(value))}%"
+    except (TypeError, ValueError):
+        return None
 
 
 def _severity(event_type: str, status: str) -> str:

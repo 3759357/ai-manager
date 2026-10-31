@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable
@@ -23,10 +24,16 @@ from core.strategy import (
     validate_decision,
 )
 
+logger = logging.getLogger(__name__)
+
 CURSOR_SOURCE = "strategy_worker"
 CANDIDATE_EVENT_TYPE = "BUY_CANDIDATE"
 
 QuoteProvider = Callable[[str], Decimal]
+
+
+class QuoteUnavailable(Exception):
+    """기준 현재가를 조회하지 못했다(브로커 장애·미지원 종목)."""
 
 
 class StrategyWorker:
@@ -68,6 +75,8 @@ class StrategyWorker:
         self.band_pct = band_pct
         self.batch_size = batch_size
         self.channels = channels
+        # 같은 예산 소진 경고를 주기마다 반복해서 보내지 않기 위해 직전 코드를 기억한다.
+        self._last_quota_code: str | None = None
 
     def run_once(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -101,15 +110,29 @@ class StrategyWorker:
                 outcome = self._review_candidate(candidate)
             except QuotaExhausted as exc:
                 # 예산 소진은 후보의 잘못이 아니다. 커서를 전진시키지 않고
-                # 다음 주기에 같은 후보부터 다시 본다.
+                # 다음 주기에 같은 후보부터 다시 본다. 최소 호출 간격(TOO_SOON)은
+                # 정상적인 대기이므로 알리지 않고, 소진 경고는 상태가 바뀔 때 한 번만 보낸다.
                 result["quota_blocked"] = exc.code
-                self._record_system_event(
-                    "QUOTA_EXHAUSTED",
-                    f"[전략] 호출 예산 소진으로 심사 중단: {exc}",
-                    severity="warning",
-                    payload={"code": exc.code, "pending_event_id": event_id},
-                )
+                if exc.code != "TOO_SOON" and exc.code != self._last_quota_code:
+                    self._record_system_event(
+                        "QUOTA_EXHAUSTED",
+                        f"[전략] 호출 예산 소진으로 심사 중단: {exc}",
+                        severity="warning",
+                        payload={"code": exc.code, "pending_event_id": event_id},
+                    )
+                if exc.code != "TOO_SOON":
+                    self._last_quota_code = exc.code
                 break
+            except QuoteUnavailable as exc:
+                # 기준가가 없으면 검증할 수 없으므로 후보를 내보내지 않는다. 한 종목의
+                # 조회 실패가 뒤의 후보를 영원히 막지 않도록 커서는 전진시킨다.
+                result["errors"] += 1
+                self._record_system_event(
+                    "QUOTE_UNAVAILABLE",
+                    f"[전략] {candidate.get('symbol') or ''} 기준 현재가 조회 실패로 심사 생략",
+                    severity="warning",
+                    payload={"event_id": event_id, "error": type(exc.__cause__ or exc).__name__},
+                )
             except AgentError as exc:
                 # 게이트웨이 장애. 브로커 장애와 같은 취급으로 기록만 하고 넘어간다.
                 result["errors"] += 1
@@ -122,6 +145,7 @@ class StrategyWorker:
             else:
                 result["reviewed"] += 1
                 result[outcome] += 1
+                self._last_quota_code = None
 
             self.store.set_cursor(CURSOR_SOURCE, event_id)
 
@@ -168,7 +192,25 @@ class StrategyWorker:
 
         # 기준 가격은 반드시 우리가 직접 조회한다.
         # 에이전트가 준 가격으로 검증하면 자기참조가 된다.
-        reference_price = self.quote_provider(symbol)
+        try:
+            reference_price = self.quote_provider(symbol)
+        except Exception as exc:  # noqa: BLE001 - 브로커 장애를 후보 단위로 격리
+            self.strategy_store.record(
+                candidate_ref=candidate_ref,
+                signature=signature,
+                symbol=symbol,
+                role=self.agent.role,
+                cli=self.agent.cli,
+                model=self.agent.model,
+                prompt_version=self.prompt_version,
+                prompt_digest=self.prompt_digest,
+                request={},
+                raw_response="",
+                status=STATUS_ERROR,
+                reject_code="QUOTE_UNAVAILABLE",
+                reject_reason=type(exc).__name__,
+            )
+            raise QuoteUnavailable(symbol) from exc
 
         request = {
             "candidate": payload,
@@ -318,7 +360,16 @@ class StrategyWorker:
     ) -> None:
         cycles = 0
         while True:
-            self.run_once()
+            try:
+                self.run_once()
+            except Exception as exc:  # noqa: BLE001 - 한 주기 실패로 워커를 멈추지 않는다
+                logger.exception("strategy worker cycle failed")
+                self._record_system_event(
+                    "WORKER_ERROR",
+                    f"[전략] 워커 주기 실패: {type(exc).__name__}",
+                    severity="critical",
+                    payload={"error": type(exc).__name__},
+                )
             cycles += 1
             if max_cycles is not None and cycles >= max_cycles:
                 return

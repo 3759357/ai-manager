@@ -291,8 +291,16 @@ def main(argv=None):
                 return 0
         else:
             while True:
-                result = store.run_once()
-                run_background_once(store)
+                try:
+                    result = store.run_once()
+                    run_background_once(store)
+                except Exception as exc:  # noqa: BLE001 - 한 주기 실패로 워커를 멈추지 않는다
+                    if args.once:
+                        raise
+                    # 예외 원문에는 인증 정보가 섞일 수 있어 종류만 남긴다.
+                    print(json.dumps({"worker_error": type(exc).__name__}), flush=True)
+                    time.sleep(args.interval)
+                    continue
                 if args.once:
                     break
                 # Logs identify jobs, never print the user's account report.

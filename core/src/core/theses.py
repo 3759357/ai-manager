@@ -304,12 +304,20 @@ class ThesisStore:
     # ---- AI 초안 (mind 'thesis' 역할) ---------------------------------------
     def request_ai_draft(self, thesis_id: str, spool: Path) -> dict[str, Any]:
         item = self.get(thesis_id, with_events=False)
-        call_id = f"thesis-{thesis_id}-v{item['version']}"
         requests, responses = spool / "requests", spool / "responses"
         requests.mkdir(parents=True, exist_ok=True, mode=0o700)
         responses.mkdir(parents=True, exist_ok=True, mode=0o700)
-        if (responses / f"{call_id}.json").exists() or (requests / f"{call_id}.json").exists():
-            return {"id": thesis_id, "requested": False, "call_id": call_id}
+        # 같은 버전의 요청이 실패했으면(.error) 시도 번호를 붙여 새 요청으로 보낸다.
+        # mind 루프는 응답(.json/.error)이 이미 있는 요청 ID를 다시 처리하지 않기 때문이다.
+        base = f"thesis-{thesis_id}-v{item['version']}"
+        attempt = 1
+        while True:
+            call_id = base if attempt == 1 else f"{base}-r{attempt}"
+            if (responses / f"{call_id}.json").exists() or (requests / f"{call_id}.json").exists():
+                return {"id": thesis_id, "requested": False, "call_id": call_id}
+            if not (responses / f"{call_id}.error").exists():
+                break
+            attempt += 1
         card = item["draft_card"]
         body = {"_role": "thesis", "_call_id": call_id, "symbol": card["symbol"], "kind": card["kind"],
                 "userStatement": card["userStatement"], "currentDraft": card}
@@ -327,7 +335,7 @@ class ThesisStore:
         if not responses.is_dir():
             return results
         for path in sorted(responses.glob("thesis-*-v*.*")):
-            m = re.fullmatch(r"thesis-(.+)-v(\d+)\.(json|error)", path.name)
+            m = re.fullmatch(r"thesis-(.+)-v(\d+)(?:-r\d+)?\.(json|error)", path.name)
             if not m:
                 continue
             thesis_id, version, ext = m.group(1), int(m.group(2)), m.group(3)

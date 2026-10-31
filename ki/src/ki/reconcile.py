@@ -109,6 +109,10 @@ class OrderReconciliationService:
             return order_id, f"RECONCILED_{source.upper()}"
 
         status = status or ACCEPTED
+        linked = self._link_unresolved_submission(row, kis_order_id, status)
+        if linked is not None:
+            return linked, "RECONCILE_LINKED"
+
         intent_id = self.store.save_order_intent(
             OrderIntent(
                 source=f"kis_reconcile:{source}",
@@ -136,6 +140,38 @@ class OrderReconciliationService:
             kis_order_id=kis_order_id,
         )
         return self.store.save_broker_order(order), f"RECONCILED_{source.upper()}"
+
+    def _link_unresolved_submission(
+        self,
+        row: dict[str, Any],
+        kis_order_id: str,
+        status: str,
+    ) -> int | None:
+        """전송 결과를 몰랐던 원장 주문과 KIS 주문이 같으면 새 행 대신 그 주문에 연결한다.
+
+        같은 종목·방향·수량·지정가인 후보가 정확히 하나일 때만 연결한다. 여럿이면 어느 것인지
+        알 수 없으므로 연결하지 않는다(새 행으로 남기고 사람이 확인).
+        """
+        price = _decimal(row.get("ft_ord_unpr3"))
+        candidates = [
+            order
+            for order in self.store.find_unlinked_submissions(
+                symbol=_symbol(row),
+                side=_side(row),
+                quantity=_int(row.get("ft_ord_qty")),
+            )
+            if _decimal(order["limit_price"]) == price
+        ]
+        if len(candidates) != 1:
+            return None
+        order = candidates[0]
+        try:
+            assert_order_transition(str(order["status"]), status)
+        except OrderStateError:
+            return None
+        if not self.store.link_kis_order(int(order["id"]), kis_order_id=kis_order_id, status=status):
+            return None
+        return int(order["id"])
 
     def _record_event(
         self,

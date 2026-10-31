@@ -63,6 +63,22 @@ class MultiplexStreamTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(first.send.await_count, 2)
             self.assertEqual(second.send.await_count, 2)
 
+    async def test_server_closing_normally_backs_off_before_reconnecting(self):
+        class Closed(Socket):
+            async def __anext__(self):
+                raise StopAsyncIteration
+        first = Closed([])
+        second = Socket(["0|HDFSCNT0|001|trade"])
+        sleep = AsyncMock()
+        with patch("ki.websocket_client.websockets.connect", side_effect=[first, second]), \
+                patch("ki.websocket_client.asyncio.sleep", sleep):
+            stream = self.client.stream_many([("HDFSCNT0", "DNASGOOGL")])
+            try:
+                self.assertEqual(await anext(stream), ("HDFSCNT0", "trade", 1))
+            finally:
+                await stream.aclose()
+        sleep.assert_awaited_once()
+
     async def test_existing_single_stream_interface_is_preserved(self):
         socket = Socket(["0|HDFSCNT0|001|ignored", "0|HDFSASP0|001|book"])
         with patch("ki.websocket_client.websockets.connect", return_value=socket):

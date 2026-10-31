@@ -273,11 +273,20 @@ class TossGateway:
         if not toss_order_id:
             raise ValueError("토스 주문번호가 없어 대사할 수 없습니다.")
         response = self.client.order(toss_order_id)
-        status = str(response.get("status") or order["status"])
+        current = str(order["status"])
+        remote = _normalize_status(response.get("status"))
+        if remote is None:
+            # 모르는 상태 이름은 원장에 쓰지 않는다. 미체결로 계속 잡아 두는 편이 안전하다.
+            status, event_type = current, "RECONCILED_UNKNOWN_STATUS"
+        elif current in TERMINAL_STATUSES and remote != current:
+            # 이미 끝난 주문을 늦게 온 조회 결과로 되돌리지 않는다.
+            status, event_type = current, "RECONCILE_CONFLICT"
+        else:
+            status, event_type = remote, "RECONCILED"
         self.store.update_status(
             order_id,
             status=status,
-            event_type="RECONCILED",
+            event_type=event_type,
             payload=response,
         )
         return {
@@ -435,6 +444,22 @@ class TossGateway:
 
 
 UNCERTAIN = {"SUBMITTING", "SUBMIT_UNKNOWN"}
+TERMINAL_STATUSES = frozenset(
+    {"FILLED", "REJECTED", "BLOCKED", "PREFLIGHT_BLOCKED", "CANCELED", "VOIDED",
+     "SUBMIT_REJECTED", "SUBMIT_FAILED", "EXPIRED"}
+)
+# 토스 주문 조회가 돌려줄 수 있는 상태 중 원장에 그대로 쓰는 이름.
+REMOTE_STATUSES = frozenset(
+    {"OPEN", "PENDING", "ACCEPTED", "SUBMITTED", "PARTIALLY_FILLED", "FILLED", "CANCELED",
+     "REJECTED", "EXPIRED", "CANCEL_REQUESTED", "REPLACE_REQUESTED", "REPLACED"}
+)
+_STATUS_ALIASES = {"CANCELLED": "CANCELED", "PARTIAL_FILLED": "PARTIALLY_FILLED", "PARTIALLY_FILL": "PARTIALLY_FILLED"}
+
+
+def _normalize_status(value: Any) -> str | None:
+    status = str(value or "").strip().upper().replace("-", "_").replace(" ", "_")
+    status = _STATUS_ALIASES.get(status, status)
+    return status if status in REMOTE_STATUSES else None
 
 
 def _error_payload(exc: TossError) -> dict[str, Any]:

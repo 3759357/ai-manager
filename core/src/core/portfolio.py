@@ -7,16 +7,14 @@ from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
 from ki.order_state import TERMINAL_ORDER_STATUSES
+from toss.gateway import TERMINAL_STATUSES as TOSS_GATEWAY_TERMINAL_STATUSES
 
 from core.risk import PortfolioPosition, PortfolioSnapshot
 
 # 로컬 원장에서 예약 노출로 보지 않는 종결 상태. KIS는 상태 머신의 정의를 그대로 쓴다.
 KIS_TERMINAL_STATUSES = TERMINAL_ORDER_STATUSES
 # SUBMITTING·SUBMIT_UNKNOWN은 접수됐을 수 있으므로 종결로 보지 않는다(미체결 노출로 예약).
-TOSS_TERMINAL_STATUSES = frozenset(
-    {"FILLED", "REJECTED", "BLOCKED", "PREFLIGHT_BLOCKED", "CANCELED", "VOIDED",
-     "SUBMIT_REJECTED", "SUBMIT_FAILED", "EXPIRED"}
-)
+TOSS_TERMINAL_STATUSES = TOSS_GATEWAY_TERMINAL_STATUSES
 # 브로커에 나가지 않아 일일 매수 합계에서 빼는 상태. 취소·만료된 주문은 일부 체결됐을 수
 # 있으므로 그날 한도에 남긴다(보수적). 토스 EXPIRED는 제출 전 후보 유효시간 만료다.
 KIS_NOT_PLACED_STATUSES = frozenset({"REJECTED", "PREFLIGHT_BLOCKED", "VOIDED"})

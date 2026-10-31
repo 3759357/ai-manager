@@ -342,6 +342,42 @@ class SnapshotStore:
                 (status, updated_at, order_id),
             )
 
+    def find_unlinked_submissions(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        quantity: int,
+    ) -> list[dict[str, Any]]:
+        """KIS 주문번호 없이 전송됐을 수 있는 주문(전송 중·결과 불명·주문번호 미확인)."""
+        with sqlite3.connect(self.database_path) as connection:
+            self._create_schema(connection)
+            connection.row_factory = sqlite3.Row
+            rows = connection.execute(
+                """
+                SELECT id, symbol, side, quantity, limit_price, status, created_at
+                FROM broker_orders
+                WHERE kis_order_id IS NULL
+                  AND status IN ('SUBMITTING', 'SUBMIT_UNKNOWN', 'SUBMITTED')
+                  AND symbol = ? AND side = ? AND quantity = ?
+                ORDER BY id
+                """,
+                (symbol, side, quantity),
+            ).fetchall()
+        return [_row_to_dict(row) for row in rows]
+
+    def link_kis_order(self, order_id: int, *, kis_order_id: str, status: str) -> bool:
+        """주문번호가 아직 없는 원장 주문에만 KIS 주문번호를 붙인다."""
+        updated_at = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(self.database_path) as connection:
+            self._create_schema(connection)
+            cursor = connection.execute(
+                "UPDATE broker_orders SET kis_order_id = ?, status = ?, updated_at = ? "
+                "WHERE id = ? AND kis_order_id IS NULL",
+                (kis_order_id, status, updated_at, order_id),
+            )
+        return cursor.rowcount == 1
+
     def claim_broker_order(self, order_id: int, *, expected: str, status: str) -> bool:
         """expected 상태일 때만 원자적으로 바꾼다(동시 제출 방지)."""
         updated_at = datetime.now(timezone.utc).isoformat()

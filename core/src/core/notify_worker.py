@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 import time
 from typing import Any, Callable, TextIO
@@ -8,6 +9,8 @@ from core.audit import record_core_event
 from core.notify import DiscordNotifier
 from core.outbox import OutboxStore
 from core.relay import OutboxRelay
+
+logger = logging.getLogger(__name__)
 
 ChannelHandler = Callable[[dict[str, Any]], None]
 
@@ -119,7 +122,11 @@ class NotificationWorker:
     ) -> None:
         cycles = 0
         while True:
-            self.run_once()
+            try:
+                self.run_once()
+            except Exception as exc:  # noqa: BLE001 - DB 잠금 등 한 주기 실패로 멈추지 않는다
+                logger.exception("notification worker cycle failed")
+                self._record_worker_error("WORKER_ERROR", type(exc).__name__)
             cycles += 1
             if max_cycles is not None and cycles >= max_cycles:
                 return

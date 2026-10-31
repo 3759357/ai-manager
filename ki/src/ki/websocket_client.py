@@ -241,6 +241,11 @@ class KISWebSocketClient:
                             error = body.get("msg1", "웹소켓 구독 오류")
                             if error != "ALREADY IN SUBSCRIBE":
                                 raise KISError(error)
+                # 서버가 연결을 정상 종료했다. 바로 다시 붙으면 빈 루프가 되므로 잠깐 쉰다.
+                retries += 1
+                if retries > max_retries:
+                    raise KISError("웹소켓 연결이 반복해서 종료되었습니다.")
+                await asyncio.sleep(min(retries * 2, 10))
             except asyncio.CancelledError:
                 raise
             except (OSError, websockets.WebSocketException, json.JSONDecodeError) as exc:

@@ -46,7 +46,7 @@ class OutboxStore:
                 return {"event_id": int(existing[0]), "created": False}
             cursor = connection.execute(
                 """
-                INSERT INTO event_outbox (
+                INSERT OR IGNORE INTO event_outbox (
                     dedup_key,
                     source,
                     category,
@@ -82,6 +82,13 @@ class OutboxStore:
                     utc_now_iso(),
                 ),
             )
+            if cursor.rowcount == 0:
+                # 다른 프로세스가 같은 dedup_key를 먼저 넣었다(SELECT와 INSERT 사이 경쟁).
+                existing = connection.execute(
+                    "SELECT id FROM event_outbox WHERE dedup_key = ?",
+                    (event.dedup_key,),
+                ).fetchone()
+                return {"event_id": int(existing[0]), "created": False}
             event_id = cursor.lastrowid
             if event_id is None:
                 raise RuntimeError("이벤트 아웃박스 ID를 생성하지 못했습니다.")
